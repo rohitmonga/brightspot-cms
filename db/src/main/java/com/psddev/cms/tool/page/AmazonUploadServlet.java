@@ -15,7 +15,7 @@ import com.psddev.dari.util.StorageItem;
 import com.psddev.dari.util.StringUtils;
 
 @RoutingFilter.Path(application = "cms", value = "amazonAuth")
-class AmazonSigningServlet extends HttpServlet {
+class AmazonUploadServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
