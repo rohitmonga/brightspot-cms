@@ -51,7 +51,7 @@ class AmazonUploader implements Uploader {
                                 "aws_key", Settings.get(String.class, StorageItem.SETTING_PREFIX + "/" + storageSetting + "/" + AmazonStorageItem.ACCESS_SETTING),
                                 "bucket", Settings.get(String.class, StorageItem.SETTING_PREFIX + "/" + storageSetting + "/" + AmazonStorageItem.BUCKET_SETTING)
                 )),
-                "data-path-start", StorageItemField.createStoragePathPrefix(),
+                "data-path-start", StorageItemField.getStoragePath(field),
                 "data-field-name", field.isPresent() ? field.get().getInternalName() : null,
                 "data-storage", storageSetting,
                 "data-type-id", field.isPresent() ? field.get().getParentType().getId() : null);

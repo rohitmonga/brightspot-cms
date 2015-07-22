@@ -551,16 +551,38 @@ public class ToolUi extends Modification<Object> {
         this.storageSetting = storageSetting;
     }
 
+    /**
+     * Gets the class of the {@link com.psddev.cms.db.ToolUi.StoragePathGenerator}
+     * associated with this field or {@code null}.
+     * @return An implementation class of {@link com.psddev.cms.db.ToolUi.StoragePathGenerator}
+     * or {@code null} if none is specified for this field.
+     */
     @SuppressWarnings("unchecked")
     public Class<? extends StoragePathGenerator> getStoragePathGeneratorClass() {
         Class<?> c = ObjectUtils.getClassByName(storagePathGeneratorClassName);
         return c != null && StoragePathGenerator.class.isAssignableFrom(c) ? (Class<? extends StoragePathGenerator>) c : null;
     }
 
+    /**
+     * Sets the class to be used when generating a {@link com.psddev.dari.util.StorageItem}
+     * path for this field.
+     * @param storagePathGeneratorClass An implementation class of {@link com.psddev.cms.db.ToolUi.StoragePathGenerator}.
+     *                                  Can be null.
+     */
     public void setStoragePathGeneratorClass(Class<? extends StoragePathGenerator> storagePathGeneratorClass) {
         this.storagePathGeneratorClassName = storagePathGeneratorClass != null ? storagePathGeneratorClass.getName() : null;
     }
 
+    /**
+     * Returns a {@link String} path for use in {@link com.psddev.dari.util.StorageItem#setPath}.
+     * Path construction is performed using either the {@link com.psddev.cms.db.ToolUi.StoragePathGenerator}
+     * specified in the {@link com.psddev.cms.db.ToolUi.StoragePathGeneratorClass} annotation
+     * of this field or a default path construction implementation in the
+     * {@link com.psddev.cms.db.ToolUi.StoragePathGenerator#generate(Object, String)} interface.
+     * @param object The parent object on which this field is stored.
+     * @param fileName The name of the file to be stored.
+     * @return A path constructed by a {@link com.psddev.cms.db.ToolUi.StoragePathGenerator}.
+     */
     public String getStoragePath(final Object object, String fileName) {
         Class<? extends StoragePathGenerator> storagePathGeneratorClass = getStoragePathGeneratorClass();
 
@@ -1643,12 +1665,12 @@ public class ToolUi extends Modification<Object> {
     /** Generates the path for a StorageItem field. */
     public static interface StoragePathGenerator {
 
-        /** Generates the path for the given {@link com.psddev.dari.util.StorageItem StorageItem} {@code object}. */
+        /** Generates a path for the given parent {@code object} and file name. */
         public default String generate(Object object, String fileName) {
 
             State state = State.getInstance(object);
 
-            String label = state.getLabel();
+            String label = state != null ? state.getLabel() : "";
 
             String extension = "";
 
