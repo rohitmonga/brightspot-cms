@@ -639,6 +639,13 @@ public class StorageItemField extends PageServlet {
         }
     }
 
+    /**
+     * Deprecated.  Use {@link ToolUi#getStoragePath(Object, String)} instead.
+     * @param label {@link State} label for the parent object.
+     * @param fileName name of the file for which the path will be constructed.
+     * @return a constructed path for use in {@link StorageItem#setPath(String)}.
+     */
+    @Deprecated
     public static String createStorageItemPath(String label, String fileName) {
 
         String extension = "";
@@ -669,6 +676,11 @@ public class StorageItemField extends PageServlet {
         return path;
     }
 
+    /**
+     * Deprecated.  Use {@link ToolUi#getStoragePath(Object, String)} instead.
+     * @return a random-UUID constructed path prefix.
+     */
+    @Deprecated
     static String createStoragePathPrefix() {
         String idString = UUID.randomUUID().toString().replace("-", "");
         StringBuilder pathBuilder = new StringBuilder();
@@ -685,7 +697,7 @@ public class StorageItemField extends PageServlet {
 
     /**
      * Gets storageSetting for current field,
-     * if non exists, get {@code StorageItem.DEFAULT_STORAGE_SETTING}
+     * if none exists, get {@code StorageItem.DEFAULT_STORAGE_SETTING}
      *
      * @param field to check for storage setting
      */
@@ -704,6 +716,20 @@ public class StorageItemField extends PageServlet {
         }
 
         return storageSetting;
+    }
+
+    static String getStoragePath(Optional<ObjectField> field) {
+
+        if (field.isPresent()) {
+            return field.get().as(ToolUi.class).getStoragePath(null, null);
+        } else {
+            return new ToolUi.StoragePathGenerator() {
+                @Override
+                public String generate(Object object, String fileName) {
+                    return ToolUi.StoragePathGenerator.super.generate(object, fileName);
+                }
+            }.generate(null, null);
+        }
     }
 
     static Map<String, Object> extractMetadata(StorageItem storageItem, Optional<InputStream> optionalStream) {
