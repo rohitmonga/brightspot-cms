@@ -1,6 +1,7 @@
 package com.psddev.cms.tool.page;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletResponse;
@@ -43,8 +44,8 @@ class AmazonUploadServlet extends PageServlet {
 
         if (action.equals("sign")) {
             signRequest(page);
-        } else if (action.equals("getPath")) {
-            getStoragePath(page);
+        } else if (action.equals("createPath")) {
+            createPath(page);
         }
     }
 
@@ -67,14 +68,14 @@ class AmazonUploadServlet extends PageServlet {
         response.getWriter().write(result);
     }
 
-    private void getStoragePath(WebPageContext page) throws ServletException, IOException {
-        String typeId = page.param(String.class, "typeId");
+    private void createPath(WebPageContext page) throws ServletException, IOException {
+        UUID typeId = page.param(UUID.class, "typeId");
         String fieldName = page.param(String.class, "fieldName");
         String fileName = page.param(String.class, "fileName");
 
-        if (StringUtils.isBlank(typeId) || StringUtils.isBlank(fieldName) || StringUtils.isBlank(fileName)) {
+        if (ObjectUtils.isBlank(typeId) || StringUtils.isBlank(fieldName) || StringUtils.isBlank(fileName)) {
             throw new ServletException("Missing parameters:"
-                    + (StringUtils.isBlank(typeId) ? " [typeId]" : "")
+                    + (ObjectUtils.isBlank(typeId) ? " [typeId]" : "")
                     + (StringUtils.isBlank(fieldName) ? " [fieldName]" : "")
                     + (StringUtils.isBlank(fileName) ? " [fileName]" : ""));
         }

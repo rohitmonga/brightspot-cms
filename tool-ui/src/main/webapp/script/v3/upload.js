@@ -22,7 +22,6 @@ function ($, bsp_utils, evaporate) {
         }
         state.evaporateConfig = settingsMeta.attr('content');
         state.fieldName = settingsMeta.attr('data-field-name');
-        state.pathStart = settingsMeta.attr('data-path-start');
         state.storage = settingsMeta.attr('data-storage');
         state.typeId = settingsMeta.attr('data-type-id');
 
@@ -63,7 +62,8 @@ function ($, bsp_utils, evaporate) {
                   'x-amz-acl': 'public-read'
                 },
                 signParams: {
-                  storageSetting: state.storage
+                  storageSetting: state.storage,
+                  action: 'sign'
                 },
                 progress: function (progress) {
                   _progress($inputSmall, i, Math.round(Number(progress * 100)));
@@ -86,6 +86,7 @@ function ($, bsp_utils, evaporate) {
       function _createFilePath(typeId, fieldName, fileName) {
 
         var params = {};
+        params['action'] = 'createPath';
         params['typeId'] = typeId;
         params['fieldName'] = fieldName;
         params['fileName'] = fileName;
