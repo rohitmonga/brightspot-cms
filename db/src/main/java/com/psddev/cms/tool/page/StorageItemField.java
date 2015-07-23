@@ -718,7 +718,7 @@ public class StorageItemField extends PageServlet {
         return storageSetting;
     }
 
-    static String getStoragePath(Optional<ObjectField> field) {
+    public static String getStoragePath(Optional<ObjectField> field) {
 
         if (field.isPresent()) {
             return field.get().as(ToolUi.class).getStoragePath(null, null);
