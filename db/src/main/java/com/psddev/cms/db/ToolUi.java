@@ -588,12 +588,8 @@ public class ToolUi extends Modification<Object> {
 
         if (storagePathGeneratorClass == null) {
 
-            return new StoragePathGenerator() {
-                @Override
-                public String generate(Object object, String fileName) {
-                    return StoragePathGenerator.super.generate(object, fileName);
-                }
-            }.generate(object, fileName);
+            return new StoragePathGenerator() {}
+                    .generate(object, fileName);
 
         } else {
             StoragePathGenerator generator = TypeDefinition.getInstance(storagePathGeneratorClass).newInstance();
