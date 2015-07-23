@@ -43,6 +43,12 @@
 
         <dependency>
             <groupId>com.psddev</groupId>
+            <artifactId>dari-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.psddev</groupId>
             <artifactId>image</artifactId>
             <optional>true</optional>
             <version>1.1-SNAPSHOT</version>
@@ -72,10 +78,23 @@
         </dependency>
 
         <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
             <groupId>org.apache.solr</groupId>
             <artifactId>solr-solrj</artifactId>
             <version>4.8.1</version>
             <optional>true</optional>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
         </dependency>
 
     </dependencies>
