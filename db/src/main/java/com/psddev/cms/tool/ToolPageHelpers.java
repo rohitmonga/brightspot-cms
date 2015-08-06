@@ -1,16 +1,12 @@
 package com.psddev.cms.tool;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.github.jknack.handlebars.Context;
 import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.Template;
-import com.github.jknack.handlebars.context.FieldValueResolver;
 import com.psddev.cms.tool.dom.AbstractElement;
-import com.psddev.dari.db.ObjectType;
 
 public class ToolPageHelpers {
 
