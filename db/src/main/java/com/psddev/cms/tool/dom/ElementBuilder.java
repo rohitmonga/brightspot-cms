@@ -3,14 +3,14 @@ package com.psddev.cms.tool.dom;
 import java.util.List;
 import java.util.Map;
 
-public class ElementBuilder<T extends AbstractElement> {
+public final class ElementBuilder<T extends AbstractElement> {
 
     private T element;
 
     private ElementBuilder(Class<T> clazz) {
         try {
             this.element = clazz.newInstance();
-        } catch(Exception e) {
+        } catch (Exception e) {
             // ignore
         }
     }
