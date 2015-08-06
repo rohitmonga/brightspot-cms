@@ -25,7 +25,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -149,10 +148,6 @@ public class ToolPageContext extends WebPageContext {
     }
 
     public void render(AbstractElement element) throws IOException {
-        Logger.getAnonymousLogger().info("WRITING ELEMENT: " + element.getType() + " " + element.getAttributes());
-        if (element instanceof ContainerElement) {
-            Logger.getAnonymousLogger().info("CHILDREN: " + ((ContainerElement) element).getChildren().size());
-        }
         write(ToolPageHelpers.el(element));
     }
 
