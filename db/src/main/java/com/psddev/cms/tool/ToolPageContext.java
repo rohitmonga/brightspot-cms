@@ -64,6 +64,9 @@ import com.psddev.cms.db.Workflow;
 import com.psddev.cms.db.WorkflowLog;
 import com.psddev.cms.db.WorkflowState;
 import com.psddev.cms.db.WorkflowTransition;
+import com.psddev.cms.tool.dom.AbstractElement;
+import com.psddev.cms.tool.dom.ContainerElement;
+import com.psddev.cms.tool.dom.ContentElement;
 import com.psddev.dari.db.Application;
 import com.psddev.dari.db.CompoundPredicate;
 import com.psddev.dari.db.Database;
@@ -142,6 +145,10 @@ public class ToolPageContext extends WebPageContext {
             HttpServletResponse response) {
 
         super(servletContext, request, response);
+    }
+
+    public void render(String resourcePath, Object object) throws IOException {
+        write(ToolPageHelpers.render(resourcePath, object));
     }
 
     /**
@@ -1776,6 +1783,20 @@ public class ToolPageContext extends WebPageContext {
                 attributes);
     }
 
+    public ContainerElement getTypeSelectElement(
+            Iterable<ObjectType> types,
+            ObjectType selectedType,
+            String allLabel,
+            Object... attributes) throws IOException {
+
+        return getTypeSelectElementReally(
+                false,
+                types,
+                selectedType != null ? Arrays.asList(selectedType) : Collections.<ObjectType>emptySet(),
+                allLabel,
+                attributes);
+    }
+
     private void writeTypeSelectReally(
             boolean multiple,
             Iterable<ObjectType> types,
@@ -1783,11 +1804,16 @@ public class ToolPageContext extends WebPageContext {
             String allLabel,
             Object... attributes) throws IOException {
 
+        ToolPageHelpers.el(getTypeSelectElementReally(multiple, types, selectedTypes, allLabel, attributes));
+    }
+
+    private ContainerElement getTypeSelectElementReally(boolean multiple, Iterable<ObjectType> types, Collection<ObjectType> selectedTypes, String allLabel, Object... attributesArray) throws IOException {
         if (types == null) {
             types = Database.Static.getDefault().getEnvironment().getTypes();
         }
 
-        List<ObjectType> typesList = ObjectUtils.to(new TypeReference<List<ObjectType>>() { }, types);
+        List<ObjectType> typesList = ObjectUtils.to(new TypeReference<List<ObjectType>>() {
+        }, types);
 
         for (Iterator<ObjectType> i = typesList.iterator(); i.hasNext();) {
             ObjectType type = i.next();
@@ -1830,26 +1856,39 @@ public class ToolPageContext extends WebPageContext {
             }
         }
 
-        writeStart("select",
-                "multiple", multiple ? "multiple" : null,
-                attributes);
+        ContainerElement select = new ContainerElement();
+        select.setType("select");
+        Map<String, Object> attributes = new CompactMap<>();
+        attributes.put("multiple", multiple ? "multiple" : null);
+        for (int i = 0; i < attributesArray.length; i += 2) {
+            attributes.put(attributesArray[i].toString(), attributesArray[i + 1]);
+        }
+        select.setAttributes(attributes);
 
-            if (allLabel != null) {
-                writeStart("option", "value", "").writeHtml(allLabel).writeEnd();
+        List<AbstractElement> options = new ArrayList<>();
+
+        if (allLabel != null) {
+            ContentElement allOption = new ContentElement();
+            allOption.setType("option");
+            allOption.setContent(allLabel);
+            options.add(allOption);
+        }
+
+        if (typeGroups.size() == 1) {
+            options.addAll(getTypeSelectGroupElements(selectedTypes, typeGroups.values().iterator().next()));
+        } else {
+            for (Map.Entry<String, List<ObjectType>> entry : typeGroups.entrySet()) {
+                ContainerElement optGroup = new ContainerElement();
+                optGroup.setType("optgroup");
+                optGroup.setAttributes(ImmutableMap.of("label", entry.getKey()));
+                optGroup.setElements(getTypeSelectGroupElements(selectedTypes, entry.getValue()));
+                options.add(optGroup);
             }
+        }
 
-            if (typeGroups.size() == 1) {
-                writeTypeSelectGroup(selectedTypes, typeGroups.values().iterator().next());
+        select.setElements(options);
 
-            } else {
-                for (Map.Entry<String, List<ObjectType>> entry : typeGroups.entrySet()) {
-                    writeStart("optgroup", "label", entry.getKey());
-                        writeTypeSelectGroup(selectedTypes, entry.getValue());
-                    writeEnd();
-                }
-            }
-
-        writeEnd();
+        return select;
     }
 
     private void writeTypeSelectGroup(Collection<ObjectType> selectedTypes, List<ObjectType> types) throws IOException {
@@ -1871,6 +1910,29 @@ public class ToolPageContext extends WebPageContext {
 
             previousLabel = label;
         }
+    }
+
+    private List<ContentElement> getTypeSelectGroupElements(Collection<ObjectType> selectedTypes, List<ObjectType> types) throws IOException {
+        String previousLabel = null;
+        List<ContentElement> elements = new ArrayList<>();
+
+        for (ObjectType type : types) {
+            String label = Static.getObjectLabel(type);
+            ContentElement element = new ContentElement();
+            element.setType("option");
+            element.setAttributes(ImmutableMap.of(
+                    "selected", selectedTypes.contains(type) ? "selected" : null,
+                    "value", type.getId()));
+            if (label.equals(previousLabel)) {
+                label += " (" + type.getInternalName() + ")";
+            }
+            element.setContent(label);
+            elements.add(element);
+
+            previousLabel = label;
+        }
+
+        return elements;
     }
 
     public List<?> findDropDownItems(ObjectField field, Search dropDownSearch) {
