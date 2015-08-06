@@ -20,9 +20,21 @@ public class ToolPageHelpers {
         return handlebars;
     }
 
-    public static String render(String resourcePath, Object object) throws IOException {
+    public static CharSequence el(AbstractElement element) throws IOException {
+        return render(element.getTemplate(), element);
+    }
+
+    public static CharSequence render(String resourcePath, Object object) throws IOException {
         Handlebars handlebars = getHandlebars();
         Template template = handlebars.compile(resourcePath);
-        return template.apply(object);
+        return new Handlebars.SafeString(template.apply(object));
+    }
+
+    public static CharSequence attrs(Map<String, Object> map) throws IOException {
+        return new Handlebars.SafeString(map.entrySet().stream()
+                .map((e) -> e.getKey() != null && e.getValue() != null
+                        ? String.format("%s=\"%s\"", e.getKey(), e.getValue())
+                        : "")
+                .collect(Collectors.joining(" ")));
     }
 }
