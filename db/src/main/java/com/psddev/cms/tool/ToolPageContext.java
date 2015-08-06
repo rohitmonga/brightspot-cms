@@ -25,6 +25,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -145,6 +146,14 @@ public class ToolPageContext extends WebPageContext {
             HttpServletResponse response) {
 
         super(servletContext, request, response);
+    }
+
+    public void render(AbstractElement element) throws IOException {
+        Logger.getAnonymousLogger().info("WRITING ELEMENT: " + element.getType() + " " + element.getAttributes());
+        if (element instanceof ContainerElement) {
+            Logger.getAnonymousLogger().info("CHILDREN: " + ((ContainerElement) element).getChildren().size());
+        }
+        write(ToolPageHelpers.el(element));
     }
 
     public void render(String resourcePath, Object object) throws IOException {
@@ -1804,7 +1813,7 @@ public class ToolPageContext extends WebPageContext {
             String allLabel,
             Object... attributes) throws IOException {
 
-        ToolPageHelpers.el(getTypeSelectElementReally(multiple, types, selectedTypes, allLabel, attributes));
+        render(getTypeSelectElementReally(multiple, types, selectedTypes, allLabel, attributes));
     }
 
     private ContainerElement getTypeSelectElementReally(boolean multiple, Iterable<ObjectType> types, Collection<ObjectType> selectedTypes, String allLabel, Object... attributesArray) throws IOException {
@@ -1856,39 +1865,32 @@ public class ToolPageContext extends WebPageContext {
             }
         }
 
-        ContainerElement select = new ContainerElement();
-        select.setType("select");
         Map<String, Object> attributes = new CompactMap<>();
         attributes.put("multiple", multiple ? "multiple" : null);
         for (int i = 0; i < attributesArray.length; i += 2) {
             attributes.put(attributesArray[i].toString(), attributesArray[i + 1]);
         }
-        select.setAttributes(attributes);
 
         List<AbstractElement> options = new ArrayList<>();
 
         if (allLabel != null) {
-            ContentElement allOption = new ContentElement();
-            allOption.setType("option");
-            allOption.setContent(allLabel);
-            options.add(allOption);
+            options.add(ContentElement.build("option", allLabel));
         }
 
         if (typeGroups.size() == 1) {
             options.addAll(getTypeSelectGroupElements(selectedTypes, typeGroups.values().iterator().next()));
         } else {
             for (Map.Entry<String, List<ObjectType>> entry : typeGroups.entrySet()) {
-                ContainerElement optGroup = new ContainerElement();
-                optGroup.setType("optgroup");
-                optGroup.setAttributes(ImmutableMap.of("label", entry.getKey()));
-                optGroup.setElements(getTypeSelectGroupElements(selectedTypes, entry.getValue()));
-                options.add(optGroup);
+                options.add(
+                        ContainerElement.build(
+                                "optgroup",
+                                ImmutableMap.of("label", entry.getKey()),
+                                getTypeSelectGroupElements(selectedTypes, entry.getValue()))
+                );
             }
         }
 
-        select.setElements(options);
-
-        return select;
+        return ContainerElement.build("select", attributes, options);
     }
 
     private void writeTypeSelectGroup(Collection<ObjectType> selectedTypes, List<ObjectType> types) throws IOException {
@@ -1913,21 +1915,22 @@ public class ToolPageContext extends WebPageContext {
     }
 
     private List<ContentElement> getTypeSelectGroupElements(Collection<ObjectType> selectedTypes, List<ObjectType> types) throws IOException {
+
         String previousLabel = null;
         List<ContentElement> elements = new ArrayList<>();
 
         for (ObjectType type : types) {
             String label = Static.getObjectLabel(type);
-            ContentElement element = new ContentElement();
-            element.setType("option");
-            element.setAttributes(ImmutableMap.of(
-                    "selected", selectedTypes.contains(type) ? "selected" : null,
-                    "value", type.getId()));
+
             if (label.equals(previousLabel)) {
                 label += " (" + type.getInternalName() + ")";
             }
-            element.setContent(label);
-            elements.add(element);
+
+            Map<String, Object> attributes = new CompactMap<>();
+            attributes.put("selected", selectedTypes.contains(type) ? "selected" : null);
+            attributes.put("value", type.getId());
+
+            elements.add(ContentElement.build("option", attributes, label));
 
             previousLabel = label;
         }
