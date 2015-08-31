@@ -1,67 +1,29 @@
 define([ 'jquery', 'v3/rtc' ], function($, rtc) {
 
-  function removeStatuses(userId) {
-    $('.inputStatus[data-user-id="' + userId + '"]').each(function() {
-      var $status = $(this);
-      var $container = $status.closest('.inputContainer');
-
-      if ($container.is('.inputContainer-updated')) {
-        return;
-      }
-
-      if (!$container.is('.inputContainer-readOnly')) {
-        $container.removeClass('inputContainer-pending');
-      }
-
-      $status.remove();
-    });
-  }
-
-  function updateStatus($container, userId, message) {
-    if ($container.length === 0 || $container.is('.inputContainer-updated')) {
-      return;
-    }
-
-    if (!$container.is('.inputContainer-readOnly')) {
-      $container.addClass('inputContainer-pending');
-    }
-
-    $container.find('> .inputLabel').after($('<div/>', {
-      'class': 'inputStatus',
-      'data-user-id': userId,
-      'html': [
-        message + ' - ',
-        $('<a/>', {
-          'text': 'Unlock',
-          'click': function() {
-            if (confirm('Are you sure you want to forcefully unlock this field?')) {
-              rtc.execute('com.psddev.cms.tool.page.content.EditFieldUpdateAction', {
-                contentId: $container.closest('form').attr('data-o-id'),
-                unlockObjectId: $container.closest('.objectInputs').attr('data-id'),
-                unlockFieldName: $container.attr('data-field-name')
-              });
-            }
-
-            return false;
-          }
-        })
-      ]
-    }));
-  }
-
   rtc.receive('com.psddev.cms.tool.page.content.EditFieldUpdateBroadcast', function(data) {
     var userId = data.userId;
     var userName = data.userName;
     var fieldNamesByObjectId = data.fieldNamesByObjectId;
 
-    removeStatuses(userId);
+    $('.inputPending[data-user-id="' + userId + '"]').each(function() {
+      var $pending = $(this);
+
+      $pending.closest('.inputContainer').removeClass('inputContainer-pending');
+      $pending.remove();
+    });
 
     if (!fieldNamesByObjectId) {
       return;
     }
 
+    var contentId = data.contentId;
+
     $.each(fieldNamesByObjectId, function (objectId, fieldNames) {
-      var $inputs = $('.objectInputs[data-id="' + objectId + '"]');
+      var $inputs = $('form[data-rtc-content-id="' + contentId + '"] .objectInputs[data-id="' + objectId + '"]');
+
+      if ($inputs.length === 0) {
+        return;
+      }
 
       $.each(fieldNames, function (i, fieldName) {
         var $container = $inputs.find('> .inputContainer[data-field-name="' + fieldName + '"]');
@@ -75,10 +37,29 @@ define([ 'jquery', 'v3/rtc' ], function($, rtc) {
         });
 
         if (!nested) {
-          updateStatus(
-              $container,
-              userId,
-              'Pending edit from ' + userName);
+          $container.addClass('inputContainer-pending');
+
+          $container.find('> .inputLabel').after($('<div/>', {
+            'class': 'inputPending',
+            'data-user-id': userId,
+            'html': [
+              'Pending edit from ' + userName + ' - ',
+              $('<a/>', {
+                'text': 'Unlock',
+                'click': function() {
+                  if (confirm('Are you sure you want to forcefully unlock this field?')) {
+                    rtc.execute('com.psddev.cms.tool.page.content.EditFieldUpdateAction', {
+                      contentId: $container.closest('form').attr('data-rtc-content-id'),
+                      unlockObjectId: $container.closest('.objectInputs').attr('data-id'),
+                      unlockFieldName: $container.attr('data-field-name')
+                    });
+                  }
+
+                  return false;
+                }
+              })
+            ]
+          }));
         }
       });
     });
@@ -86,14 +67,22 @@ define([ 'jquery', 'v3/rtc' ], function($, rtc) {
 
   rtc.receive('com.psddev.cms.tool.page.content.PublishBroadcast', function(data) {
     var newValues = data.values;
-    var contentId = data.contentId;
-    var oldValues = $('input[name="' + contentId + '/oldValues"]').val();
+    var newValuesId = newValues._id;
+    var oldValues = $('input[name="' + newValuesId + '/oldValues"]').val();
 
     if (oldValues) {
+      var contentId = data.contentId;
       var userId = data.userId;
       var userName = data.userName;
 
-      removeStatuses(userId);
+      function removeUpdated() {
+        var $updated = $(this);
+
+        $updated.closest('.inputContainer').removeClass('inputContainer-updated');
+        $updated.remove();
+      }
+
+      $('.inputUpdated[data-user-id="' + userId + '"]').each(removeUpdated);
 
       function compare(objectId, oldValues, newValues) {
         $.each(oldValues, function(fieldName, oldValue) {
@@ -104,24 +93,41 @@ define([ 'jquery', 'v3/rtc' ], function($, rtc) {
             compare(oldValueId, oldValue, newValue);
 
           } else if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
-            var $container = $('.objectInputs[data-id="' + objectId + '"] > .inputContainer[data-field-name="' + fieldName + '"]');
+            var $container = $('[data-rtc-content-id="' + contentId + '"] .objectInputs[data-id="' + objectId + '"] > .inputContainer[data-field-name="' + fieldName + '"]');
             var $form = $container.closest('form');
 
             if ($form.length > 0 && !$.data($form[0], 'content-edit-submit')) {
-              updateStatus($container, userId, 'Updated by ' + userName + ' at ' + new Date(data.date));
               $container.addClass('inputContainer-updated');
+
+              $container.find('> .inputLabel').after($('<div/>', {
+                'class': 'inputUpdated',
+                'data-user-id': userId,
+                'html': [
+                  'Updated by ' + userName + ' at ' + new Date(data.date) + ' - ',
+                  $('<a/>', {
+                    'text': 'Ignore',
+                    'click': function() {
+                      if (confirm('Are you sure you want to ignore updates to this field and edit it anyway?')) {
+                        $(this).closest('.inputUpdated').each(removeUpdated);
+                      }
+
+                      return false;
+                    }
+                  })
+                ]
+              }));
             }
           }
         });
       }
 
-      compare(contentId, $.parseJSON(oldValues), newValues);
+      compare(newValuesId, $.parseJSON(oldValues), newValues);
     }
   });
 
   $('.contentForm').each(function() {
     var $form = $(this);
-    var contentId = $form.attr('data-o-id');
+    var contentId = $form.attr('data-rtc-content-id');
 
     function update() {
       var fieldNamesByObjectId = { };
