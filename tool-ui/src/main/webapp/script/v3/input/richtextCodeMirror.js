@@ -1046,7 +1046,7 @@ define(['jquery', 'codemirror/lib/codemirror'], function($, CodeMirror) {
          * The range of positions {from,to} 
          *
          * @returns Boolean
-         * True if all charcters in the range are styled with className.
+         * True if any charcter in the range is styled with className.
          */
         inlineHasStyle: function(styleKey, range) {
             
@@ -1886,7 +1886,6 @@ define(['jquery', 'codemirror/lib/codemirror'], function($, CodeMirror) {
          *
          * @param Object [options]
          * @param Object [options.block=false]
-         * @param Object [options.above=false]
          * @param Function [options.toHTML]
          * Function to return HTML content to be placed at the point of the enhancement.
          * If not provided then the enhancement will not appear in the output.
@@ -2151,7 +2150,7 @@ define(['jquery', 'codemirror/lib/codemirror'], function($, CodeMirror) {
         enhancementFromHTML: function($content, line) {
             var self;
             self = this;
-            self.enhancementAdd($content, line, {above:true, toHTML: function(){
+            self.enhancementAdd($content, line, {toHTML: function(){
                 return $content.html();
             }});
         },
@@ -2266,7 +2265,13 @@ define(['jquery', 'codemirror/lib/codemirror'], function($, CodeMirror) {
                     if (textOriginal === '\n') {
                         return;
                     }
-                    
+
+                    // Determine if *every* character in the range is already marked as an insertion.
+                    // In this case we can just delete the content and don't need to mark it as deleted.
+                    if (self.inlineGetStyles(changeObj).trackInsert === true) {
+                        return;
+                    }
+
                     // Do not actually delete the text because we will mark it instead
                     changeObj.cancel();
 
@@ -2394,9 +2399,12 @@ define(['jquery', 'codemirror/lib/codemirror'], function($, CodeMirror) {
             if (textOriginal === '\n') {
                 return;
             }
-            
-            // Add formatting to show the deleted area
-            self.inlineSetStyle('trackDelete', range);
+
+            // Determine if every character in the range is already marked as an insertion.
+            // In this case we can just delete the content and don't need to mark it as deleted.
+            if (self.inlineGetStyles(range).trackInsert !== true) {
+                self.inlineSetStyle('trackDelete', range);
+            }
 
             // Remove any text within the range that is marked as inserted
             self.inlineRemoveStyle('trackInsert', range, {deleteText:true});
@@ -3003,6 +3011,13 @@ define(['jquery', 'codemirror/lib/codemirror'], function($, CodeMirror) {
         },
 
 
+        setCursor: function(line, ch) {
+            var self;
+            self = this;
+            self.codeMirror.setCursor(line, ch);
+        },
+
+        
         /**
          * Determine if an element is a "container" for another element.
          * For example, element "li" is contained within a "ul" or "ol" element.
@@ -3273,7 +3288,7 @@ define(['jquery', 'codemirror/lib/codemirror'], function($, CodeMirror) {
 
                         // Only include the enhancement if the first character of this line is within the selected range
                         charInRange = (lineNo >= range.from.line) && (lineNo <= range.to.line);
-                        if (lineNo === range.from.line && 0 <= range.from.ch) {
+                        if (lineNo === range.from.line && range.from.ch > 0) {
                             charInRange = false;
                         }
                         if (!charInRange) {
@@ -3286,12 +3301,7 @@ define(['jquery', 'codemirror/lib/codemirror'], function($, CodeMirror) {
                         }
 
                         if (enhancementHTML) {
-
-                            if (mark.above) {
-                                html += enhancementHTML;
-                            } else {
-                                htmlEndOfLine += enhancementHTML;
-                            }
+                            html += enhancementHTML;
                         }
                     });
                 }
@@ -3654,7 +3664,16 @@ define(['jquery', 'codemirror/lib/codemirror'], function($, CodeMirror) {
                             });
                             
                         } else {
-                            text = text.replace(/[\n\r]/g, '').replace(/\s+/g, ' ');
+
+                            // Convert multiple white space to single space
+                            text = text.replace(/[\n\r]/g, ' ').replace(/\s+/g, ' ');
+                            
+                            // If text node is not within an element remove leading and trailing spaces.
+                            // For example, pasting content from Word has text nodes with whitespace
+                            // between elements.
+                            if ($(next.parentElement).is('body')) {
+                                text = text.replace(/^\s*|\s*$/g, '');
+                            }
                         }
                         
                         val += text;
