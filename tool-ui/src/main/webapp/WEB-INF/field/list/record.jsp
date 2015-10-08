@@ -35,7 +35,7 @@ java.util.Map,
 java.util.Set,
 java.util.UUID,
 java.util.stream.Collectors
-" %><%
+, com.psddev.cms.tool.page.UploadFiles" %><%
 
 // --- Logic ---
 
@@ -626,6 +626,11 @@ if (!isValueExternal) {
                                         "id", itemState.getId()));
 
                     } else {
+                        wp.writeElement("input",
+                                "type", "hidden",
+                                "name", dataName,
+                                "value", "");
+
                         wp.writeFormFields(item);
                     }
                 wp.writeEnd();
@@ -661,7 +666,10 @@ if (!isValueExternal) {
 
             wp.writeStart("a",
                     "class", "action-upload",
-                    "href", wp.url("/content/uploadFiles?" + typeIdsQuery, "containerId", containerObjectId),
+                    "href", wp.url(
+                            "/content/uploadFiles?" + typeIdsQuery,
+                            "containerId", containerObjectId,
+                            "context", UploadFiles.Context.FIELD),
                     "target", "uploadFiles");
                 wp.writeHtml("Upload Files");
             wp.writeEnd();
@@ -729,7 +737,10 @@ if (!isValueExternal) {
         if (displayGrid && !field.as(ToolUi.class).isReadOnly()) {
             writer.start("a",
                     "class", "action-upload",
-                    "href", wp.url("/content/uploadFiles?" + typeIdsQuery, "containerId", containerObjectId),
+                    "href", wp.url(
+                            "/content/uploadFiles?" + typeIdsQuery,
+                            "containerId", containerObjectId,
+                            "context", UploadFiles.Context.FIELD),
                     "target", "uploadFiles");
                 writer.html("Upload Files");
             writer.end();
