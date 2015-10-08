@@ -149,6 +149,8 @@ public class ToolPageContext extends WebPageContext {
 
     public static final String DEFAULT_OBJECT_LABEL = "Untitled";
 
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
+
     /** Creates an instance based on the given {@code pageContext}. */
     public ToolPageContext(PageContext pageContext) {
         super(pageContext);
@@ -267,14 +269,11 @@ public class ToolPageContext extends WebPageContext {
 
     public String localize(Object context, Map<String, Object> contextOverrides, String key) throws IOException {
         String baseName = null;
-        ObjectField field = null;
 
         if (context instanceof ObjectField) {
-            field = (ObjectField) context;
-            context = field.getParentType();
+            context = ((ObjectField) context).getParentType();
         }
 
-        ObjectType type = null;
         State state = null;
 
         if (context != null) {
@@ -282,11 +281,10 @@ public class ToolPageContext extends WebPageContext {
                 baseName = (String) context;
 
             } else if (context instanceof ObjectType) {
-                type = (ObjectType) context;
-                baseName = type.getInternalName();
+                baseName = ((ObjectType) context).getInternalName();
 
             } else if (context instanceof Class) {
-                type = ObjectType.getInstance((Class<?>) context);
+                ObjectType type = ObjectType.getInstance((Class<?>) context);
 
                 if (type != null) {
                     baseName = type.getInternalName();
@@ -297,7 +295,7 @@ public class ToolPageContext extends WebPageContext {
 
             } else if (context instanceof Recordable) {
                 state = ((Recordable) context).getState();
-                type = state.getType();
+                ObjectType type = state.getType();
 
                 if (type != null) {
                     baseName = type.getInternalName();
@@ -310,31 +308,40 @@ public class ToolPageContext extends WebPageContext {
 
         Locale defaultLocale = Locale.getDefault();
         Locale userLocale = MoreObjects.firstNonNull(getUser() != null ? getUser().getLocale() : null, defaultLocale);
-        String localized = createLocalizedString(userLocale, userLocale, baseName, key, state, contextOverrides);
+        boolean firstTry = true;
 
-        if (localized == null && !defaultLocale.equals(userLocale)) {
-            localized = createLocalizedString(defaultLocale, userLocale, baseName, key, state, contextOverrides);
-        }
+        while (true) {
+            String localized = createLocalizedString(userLocale, userLocale, baseName, key, state, contextOverrides);
 
-        if (localized == null) {
-            Locale usLocale = Locale.US;
-            String usLanguage = usLocale.getLanguage();
-
-            if (!usLanguage.equals(defaultLocale.getLanguage())
-                    && !usLanguage.equals(userLocale.getLanguage())) {
-
-                localized = createLocalizedString(usLocale, userLocale, baseName, key, state, contextOverrides);
+            if (localized == null && !defaultLocale.equals(userLocale)) {
+                localized = createLocalizedString(defaultLocale, userLocale, baseName, key, state, contextOverrides);
             }
-        }
 
-        if (localized == null) {
-            throw new MissingResourceException(
-                    String.format("Can't find [%s] key in [%s] resource bundle!", key, baseName),
-                    baseName,
-                    key);
+            if (localized == null) {
+                Locale usLocale = Locale.US;
+                String usLanguage = usLocale.getLanguage();
 
-        } else {
-            return localized;
+                if (!usLanguage.equals(defaultLocale.getLanguage())
+                        && !usLanguage.equals(userLocale.getLanguage())) {
+
+                    localized = createLocalizedString(usLocale, userLocale, baseName, key, state, contextOverrides);
+                }
+            }
+
+            if (localized == null) {
+                if (firstTry) {
+                    firstTry = false;
+
+                    System.out.println("invalidate and retry");
+                    ObjectTypeResourceBundle.invalidateInstances();
+
+                } else {
+                    return "{" + baseName + "/" + key + "}";
+                }
+
+            } else {
+                return localized;
+            }
         }
     }
 
@@ -1062,6 +1069,7 @@ public class ToolPageContext extends WebPageContext {
 
             if (history != null) {
                 state.getExtras().put(OVERLAID_HISTORY_EXTRA, history);
+                state.getExtras().put("cms.draft.oldValues", state.getSimpleValues());
                 state.setValues(history.getObjectOriginals());
                 state.setStatus(StateStatus.SAVED);
 
@@ -1297,7 +1305,20 @@ public class ToolPageContext extends WebPageContext {
                 writeHtml(" ");
             }
 
-            writeHtml(getObjectLabelOrDefault(state, DEFAULT_OBJECT_LABEL));
+            String label = getObjectLabelOrDefault(state, DEFAULT_OBJECT_LABEL);
+
+            if (WHITESPACE_PATTERN.splitAsStream(label)
+                    .filter(word -> word.length() > 41)
+                    .findFirst()
+                    .isPresent()) {
+
+                writeStart("span", "class", "breakable");
+                writeHtml(label);
+                writeEnd();
+
+            } else {
+                writeHtml(label);
+            }
         }
     }
 
@@ -1498,7 +1519,9 @@ public class ToolPageContext extends WebPageContext {
         HtmlGrid.Static.setRestrictGridPaths(cms.getGridCssPaths(), this.getServletContext());
 
         writeTag("!doctype html");
-        writeTag("html", "class", site != null ? site.getCmsCssClass() : null);
+        writeTag("html",
+                "class", site != null ? site.getCmsCssClass() : null,
+                "lang", MoreObjects.firstNonNull(user != null ? user.getLocale() : null, Locale.getDefault()).toLanguageTag());
             writeStart("head");
                 writeStart("title");
                     if (!ObjectUtils.isBlank(title)) {
@@ -2629,7 +2652,7 @@ public class ToolPageContext extends WebPageContext {
             }
 
             writeStart("div",
-                    "class", "objectInputs",
+                    "class", "objectInputs" + (type.as(ToolUi.class).isReadOnly() ? " objectInputs-readOnly" : ""),
                     "lang", type != null ? type.as(ToolUi.class).getLanguageTag() : null,
                     "data-type", type != null ? type.getInternalName() : null,
                     "data-id", state.getId(),

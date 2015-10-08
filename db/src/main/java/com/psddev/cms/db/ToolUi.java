@@ -1395,7 +1395,7 @@ public class ToolUi extends Modification<Object> {
     @ObjectField.AnnotationProcessorClass(ReadOnlyProcessor.class)
     @ObjectType.AnnotationProcessorClass(ReadOnlyProcessor.class)
     @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.FIELD)
+    @Target({ ElementType.FIELD, ElementType.TYPE })
     public @interface ReadOnly {
         boolean value() default true;
     }
