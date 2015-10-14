@@ -89,7 +89,7 @@ public class UploadFiles extends PageServlet {
                 Object common = selectedType.createObject(page.param(UUID.class, "typeForm-" + selectedType.getId()));
                 page.updateUsingParameters(common);
                 
-                List<StorageItem> newStorageItems = StorageItemFilter.getMultiple(page.getRequest(), jsonParamName, previewField.as(ToolUi.class).getStorageSetting());
+                List<StorageItem> newStorageItems = StorageItemFilter.getMultiple(page.getRequest(), jsonParamName, StorageItemField.getStorageSetting(Optional.of(previewField)));
 
                 if (ObjectUtils.isBlank(newStorageItems)) {
                     newStorageItems = StorageItemFilter.getMultiple(page.getRequest(), fileParamName, null);
