@@ -13,63 +13,51 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-import com.psddev.dari.util.StorageItem;
-import com.psddev.dari.util.StorageItemPart;
+import com.psddev.dari.util.AbstractStorageItem;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
-public class MetadataPostprocessorTest {
+public class MetadataAfterSaveTest {
+
 
     @Mock
-    StorageItemPart part;
+    AbstractStorageItem item;
 
-    @Mock
-    StorageItem item;
-
-    MetadataPostprocessor processor;
+    MetadataAfterSave processor;
 
     @Before
     public void before() {
-        processor = new MetadataPostprocessor();
+        processor = new MetadataAfterSave();
     }
 
     @Test
-    public void nullPart() {
-        part = null;
-        processor.process(part);
-    }
-
-    @Test
-    public void nullStorageItem() {
-        when(part.getStorageItem()).thenReturn(null);
-        processor.process(part);
+    public void nullStorgageItem() {
+        processor.afterSave(null);
     }
 
     @Test
     public void imageStorageItem() throws URISyntaxException, IOException {
         Map<String, Object> metadata = new HashMap<>();
-        when(part.getStorageItem()).thenReturn(item);
         when(item.getMetadata()).thenReturn(metadata);
         when(item.getContentType()).thenReturn("image/png");
 
         File file = new File(getClass().getClassLoader().getResource("com/psddev/cms/tool/file/MetadataPostprocessor_Test/test.png").toURI());
         when(item.getData()).thenReturn(new FileInputStream(file));
 
-        processor.process(part);
+        processor.afterSave(item);
 
         verify(item, Mockito.times(1)).getData();
     }
 
     @Test
     public void metadataException() throws IOException {
-        when(part.getStorageItem()).thenReturn(item);
 
         Map<String, Object> metadata = new HashMap<>();
         when(item.getMetadata()).thenReturn(metadata);
         when(item.getContentType()).thenReturn("image/png");
         when(item.getData()).thenThrow(new IOException());
 
-        processor.process(part);
+        processor.afterSave(item);
     }
 }

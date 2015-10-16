@@ -7,26 +7,20 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.psddev.dari.util.AbstractStorageItem;
 import com.psddev.dari.util.AggregateException;
 import com.psddev.dari.util.ImageMetadataMap;
 import com.psddev.dari.util.IoUtils;
 import com.psddev.dari.util.StorageItem;
-import com.psddev.dari.util.StorageItemPart;
-import com.psddev.dari.util.StorageItemPostprocessor;
+import com.psddev.dari.util.StorageItemAfterSave;
 
-public class MetadataPostprocessor implements StorageItemPostprocessor {
+public class MetadataAfterSave implements StorageItemAfterSave {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(MetadataPostprocessor.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MetadataAfterSave.class);
 
     @Override
-    public void process(StorageItemPart part) {
-        if (part == null) {
-            return;
-        }
-
-        StorageItem storageItem = part.getStorageItem();
-
-        if (storageItem == null) {
+    public void afterSave(StorageItem storageItem) {
+        if (storageItem == null || !(storageItem instanceof AbstractStorageItem)) {
             return;
         }
 

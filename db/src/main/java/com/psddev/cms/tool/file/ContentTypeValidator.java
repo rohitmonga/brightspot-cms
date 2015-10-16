@@ -10,8 +10,8 @@ import com.google.common.base.Preconditions;
 import com.psddev.dari.util.ObjectUtils;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.SparseSet;
-import com.psddev.dari.util.StorageItemPart;
-import com.psddev.dari.util.StorageItemValidator;
+import com.psddev.dari.util.StorageItemBeforeCreate;
+import com.psddev.dari.util.StorageItemUploadPart;
 
 /**
  * Validates the content type of a file. Throws an error
@@ -19,10 +19,10 @@ import com.psddev.dari.util.StorageItemValidator;
  * {@link Settings}, and also throws an error if the file is
  * an HTML file disguised as another content type.
  */
-public class ContentTypeValidator implements StorageItemValidator {
+public class ContentTypeValidator implements StorageItemBeforeCreate {
 
     @Override
-    public void validate(StorageItemPart part) throws IOException {
+    public void beforeCreate(StorageItemUploadPart part) throws IOException {
         Preconditions.checkNotNull(part);
         Preconditions.checkNotNull(part.getFile());
 

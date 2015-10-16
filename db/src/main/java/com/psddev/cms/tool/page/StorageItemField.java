@@ -30,12 +30,13 @@ import com.psddev.cms.tool.FileContentType;
 import com.psddev.cms.tool.PageServlet;
 import com.psddev.cms.tool.ToolPageContext;
 import com.psddev.cms.tool.file.ContentTypeValidator;
-import com.psddev.cms.tool.file.MetadataPreprocessor;
+import com.psddev.cms.tool.file.MetadataBeforeSave;
 import com.psddev.dari.db.ObjectField;
 import com.psddev.dari.db.ObjectType;
 import com.psddev.dari.db.Query;
 import com.psddev.dari.db.ReferentialText;
 import com.psddev.dari.db.State;
+import com.psddev.dari.util.AbstractStorageItem;
 import com.psddev.dari.util.AggregateException;
 import com.psddev.dari.util.ClassFinder;
 import com.psddev.dari.util.ImageMetadataMap;
@@ -45,7 +46,7 @@ import com.psddev.dari.util.RoutingFilter;
 import com.psddev.dari.util.Settings;
 import com.psddev.dari.util.StorageItem;
 import com.psddev.dari.util.StorageItemFilter;
-import com.psddev.dari.util.StorageItemPart;
+import com.psddev.dari.util.StorageItemUploadPart;
 import com.psddev.dari.util.StringUtils;
 import com.psddev.dari.util.TypeReference;
 
@@ -279,15 +280,14 @@ public class StorageItemField extends PageServlet {
                             IoUtils.copy(fileInput, fileOutput);
                         }
 
-                        StorageItemPart part = new StorageItemPart();
+                        StorageItemUploadPart part = new StorageItemUploadPart();
                         part.setName(name);
                         part.setFile(file);
                         part.setContentType(fileContentType);
-                        part.setSize(fileSize);
 
                         if (name != null
                                 && fileContentType != null) {
-                            new ContentTypeValidator().validate(part);
+                            new ContentTypeValidator().beforeCreate(part);
                         }
 
                         if (fileSize > 0) {
@@ -295,9 +295,11 @@ public class StorageItemField extends PageServlet {
                             newItem = StorageItem.Static.createIn(getStorageSetting(Optional.of(field)));
                             newItem.setPath(createStorageItemPath(state.getLabel(), name));
                             newItem.setContentType(fileContentType);
+                            if (newItem instanceof AbstractStorageItem) {
+                                ((AbstractStorageItem) newItem).setPart(part);
+                            }
 
-                            part.setStorageItem(newItem);
-                            new MetadataPreprocessor().process(part);
+                            new MetadataBeforeSave().beforeSave(newItem);
 
                             newItem.setData(new FileInputStream(file));
                         }
