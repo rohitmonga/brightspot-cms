@@ -1466,9 +1466,11 @@ define([
 
             // Show the text overlays for this group
             self.textSelectGroup(groupName);
+
+            // Create the "Reset Crop" button within the group
+            self.resetCropShow(groupName);
         },
 
-        
         /**
          * Unselect the currently selected size.
          */
@@ -1484,6 +1486,9 @@ define([
 
             // Remove the "Add Text" button
             self.textUnselect();
+
+            // Remove the "Reset Crop" button
+            self.resetCropHide();
         },
 
         
@@ -2108,6 +2113,16 @@ define([
             self.dom.$imageContainer.attr('style', '');
         },
 
+        /**
+         * Refreshes the sizebox to display updated bounds.
+         */
+        sizeBoxRefresh: function(groupName) {
+            var self;
+            self = this;
+            self.sizeBoxHide();
+            self.sizeBoxShow(groupName);
+        },
+
         
         /**
          * Create a mousedown handler function that lets the user drag the size box
@@ -2594,6 +2609,33 @@ define([
             }
 
             return crop;
+        },
+
+        //--------------------------------------------------
+        // SIZES - RESET CROP
+        //--------------------------------------------------
+
+        resetCropShow: function (groupName) {
+            var self;
+
+            self = this;
+
+            $('<a/>', {
+                'class': 'imageEditor-resetCrop',
+                'text': 'Reset Crop',
+                'click': function () {
+                    self.sizesResetGroup(groupName);
+                    self.sizesUpdatePreview(groupName);
+                    self.sizeBoxRefresh(groupName);
+                    return false;
+                }
+            }).insertAfter(self.sizeGroups[groupName].$groupLabel);
+        },
+
+        resetCropHide: function () {
+            var self;
+            self = this;
+            self.$element.find('.imageEditor-resetCrop').remove();
         },
 
         //--------------------------------------------------
