@@ -1720,7 +1720,7 @@ define([
                 leftPadPx: leftPad * imageWidth,
                 paddedImageWidth: paddedImageWidth,
                 paddedImageHeight: paddedImageHeight,
-                scale: 1 / (1 + leftPad)
+                scale: 1 / (1 + (leftPad * 2))
             }
         },
         
