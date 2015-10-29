@@ -1880,39 +1880,31 @@ define([
             
             var region = self.sizesGetImageArea(imageWidth, imageHeight, sizeInfo);
             
-            boundsRight = bounds.left + bounds.width;
-            boundsBottom = bounds.top + bounds.height;
+            boundsRight = bounds.left + (bounds.width * region.scale);
+            boundsBottom = bounds.top + (bounds.height * region.scale);
             
-            // Adjust height and width with padding
-            // imageWidth += bounds.leftPad * 2;
-            // imageHeight += bounds.topPad * 2;
-            //imageWidth += padData.leftPadPx * 2;
-            //imageHeight += padData.topPadPx * 2;
-            
-            // var transform = {
-            //     'transform' : 'scale(' + padData.scale + ')',
-            //     'transform-origin' : 'top left'
-            // };
+            var scaledAreaWidth = region.totalWidth * region.scale;
+            var scaledAreaHeight = region.totalHeight * region.scale;
 
             self.dom.$coverTop.css({
                 'height': bounds.top,
-                'width': imageWidth
+                'width': scaledAreaWidth
             });
             self.dom.$coverLeft.css({
-                'height': bounds.height,
+                'height': bounds.height * region.scale,
                 'top': bounds.top,
                 'width': bounds.left
             });
             self.dom.$coverRight.css({
-                'height': bounds.height,
+                'height': bounds.height * region.scale,
                 'left': boundsRight,
                 'top': bounds.top,
-                'width': imageWidth - boundsRight
+                'width': scaledAreaWidth - boundsRight
             });
             self.dom.$coverBottom.css({
-                'height': imageHeight - boundsBottom,
+                'height': scaledAreaHeight - boundsBottom,
                 'top': boundsBottom,
-                'width': imageWidth
+                'width': scaledAreaWidth
             });
 
             self.coverShow();
@@ -2187,6 +2179,10 @@ define([
                 regionWidth = region.totalWidth;
                 regionHeight = region.totalHeight;
                 
+                // Drag and resize boundaries are limited to scaled width/height
+                var scaledWidth = regionWidth * region.scale;
+                var scaledHeight = regionHeight * region.scale;
+                
                 // On mousedown, let the user start dragging the element
                 // The .drag() function takes the following parameters:
                 // (element, event, startCallback, moveCallback, endCallback)
@@ -2229,9 +2225,6 @@ define([
                         if (bounds.top < 0) {
                             bounds.top = 0;
                         }
-                        
-                        var scaledWidth = regionWidth * region.scale;
-                        var scaledHeight = regionHeight * region.scale;
 
                         overflow = bounds.left + (bounds.width * region.scale) - scaledWidth;
                         if (overflow > 0) {
@@ -2279,7 +2272,7 @@ define([
                         }
 
                         // Check if the box extends past the right
-                        overflow = bounds.left + bounds.width - region.totalWidth;
+                        overflow = bounds.left + (bounds.width * region.scale) - scaledWidth;
                         if (overflow > 0) {
                             bounds.width -= overflow;
                             if (aspectRatio) {
@@ -2288,7 +2281,7 @@ define([
                         }
 
                         // Check if the box extends past the bottom
-                        overflow = bounds.top + bounds.height - region.totalHeight;
+                        overflow = bounds.top + (bounds.height * region.scale) - scaledHeight;
                         if (overflow > 0) {
                             bounds.height -= overflow;
                             if (aspectRatio) {
