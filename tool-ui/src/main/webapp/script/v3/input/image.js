@@ -2088,6 +2088,9 @@ define([
                 });
             }
             
+            bounds.left *= area.scale;
+            bounds.top *= area.scale;
+            
             self.coverUpdate(bounds, sizeInfo);
             self.coverShow();
             
