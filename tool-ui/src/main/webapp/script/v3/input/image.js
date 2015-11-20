@@ -1405,8 +1405,8 @@ define([
                     var $focusImage = self.dom.$focusImage[0];
                     
                     focusCrop = self.focusGetCrop({
-                        x: focusX / 100,
-                        y: focusY / 100
+                        x: focusX,
+                        y: focusY
                     }, {
                         width: $focusImage.width,
                         height: $focusImage.height,
@@ -2463,7 +2463,7 @@ define([
 
 
             if (self.dom.$focusInputX.val() !== '' && self.dom.$focusInputY.val() !== '') {
-                self.insertFocusPoint(self.dom.$focusImage, self.dom.$focusInputX.val(), self.dom.$focusInputY.val());
+                self.insertFocusPoint(self.dom.$focusImage, self.dom.$focusInputX.val() * 100, self.dom.$focusInputY.val() * 100);
             }
 
             focusMessage = '<p>Click inside the image to set a focus point for all image sizes.</p>';
@@ -2536,8 +2536,8 @@ define([
                 // When switching to sizes tab, update the thumbnails
                 self.sizesNeedsUpdate = true;
 
-                self.dom.$focusInputX.val(focus.xPercent * 100);
-                self.dom.$focusInputY.val(focus.yPercent * 100);
+                self.dom.$focusInputX.val(focus.xPercent);
+                self.dom.$focusInputY.val(focus.yPercent);
 
                 self.insertFocusPoint(self.dom.$focusImage, focus.xPercent * 100, focus.yPercent * 100);
                 self.dom.$focusPoint.css({left:(focus.xPercent * 100) + '%', top:(focus.yPercent * 100) + '%'});
