@@ -539,8 +539,6 @@ define([
                 }
             }
 
-            self.rawCleanup();
-
             return mark;
         },
 
@@ -613,6 +611,14 @@ define([
          *
          * @param Object [range=current selection]
          * The range of positions {from,to} 
+         *
+         * @param Object [options]
+         * Set of key/value pairs to specify options.
+         * These options will be passed as mark options when the mark is created.
+         *
+         * @param Object [options.triggerChange=true]
+         * Set this to false if you do not want to trigger the rteChange event after setting the style.
+         * For example, if you will be making multiple style changes and you will trigger the rteChange event yourself.
          */
         inlineSetStyle: function(style, range, options) {
             
@@ -678,7 +684,9 @@ define([
             // Trigger a cursorActivity event so for example toolbar can pick up changes
             CodeMirror.signal(editor, "cursorActivity");
 
-            self.triggerChange();
+            if (options.triggerChange !== false) {
+                self.triggerChange();
+            }
             
             return mark;
             
@@ -1436,7 +1444,7 @@ define([
             
             $.each(editor.getAllMarks(), function(i, mark) {
 
-                var pos, styleObj, from, to;
+                var pos, styleObj, from, to, marks;
                 
                 // Is this a "raw" mark?
                 styleObj = self.classes[mark.className] || {};
@@ -1451,8 +1459,38 @@ define([
                     from = pos.from;
                     to = pos.to;
 
-                    // Clear other styles
-                    self.inlineRemoveStyle('', {from:from, to:to}, {includeTrack:true, except:mark.className, triggerChange:false});
+                    // Determine if there are other marks in this range
+                    marks = editor.findMarks(from, to);
+                    if (marks.length > 1) {
+
+                        $.each(marks, function(i, markInside) {
+
+                            var posInside;
+
+                            // Skip this mark if it is the raw mark
+                            if (markInside.className === mark.className) {
+                                return;
+                            }
+
+                            posInside = markInside.find() || {};
+                            
+                            // Make sure the mark is actually inside the raw area
+                            if (posInside.from.ch === pos.to.ch || posInside.to.ch === pos.from.ch) {
+                                
+                                // Don't do anything because the mark is next to the raw mark, not inside it
+                                
+                            } else {
+                                
+                                // Clear other styles within the raw mark
+                                self.inlineRemoveStyle('', {from:from, to:to}, {includeTrack:true, except:mark.className, triggerChange:false});
+
+                                // Return false to exit the each loop
+                                return false;
+                            }
+                            
+                        });
+
+                    }
                 }
                 
             });
@@ -1564,6 +1602,17 @@ define([
 
                 className = mark.className;
 
+                // Skip any classname that is not in our styles list
+                if (!self.classes[className]) {
+                    return;
+                }
+     
+                // Skip any classname that has an onClick since we dont' want to mess with those.
+                // For example, links.
+                if (self.classes[className].onClick) {
+                    return;
+                }
+                
                 if (!marksByClassName[className]) {
                     marksByClassName[className] = [];
                 }
@@ -1657,15 +1706,24 @@ define([
          *
          * @param Object [range=current selection]
          * The range of positions {from,to}.
+         *
+         * @param Object [options]
+         * Set of key/value pairs to specify options.
+         * These options will be passed as mark options when the mark is created.
+         *
+         * @param Object [options.triggerChange=true]
+         * Set this to false if you do not want to trigger the rteChange event after setting the style.
+         * For example, if you will be making multiple style changes and you will trigger the rteChange event yourself.
          */
-        blockSetStyle: function(style, range) {
+        blockSetStyle: function(style, range, options) {
 
             var className, editor, lineNumber, self, styleObj;
 
             self = this;
             editor = self.codeMirror;
             range = range || self.getRange();
-
+            options = options || {};
+            
             if (typeof style === 'string') {
                 styleObj = self.styles[style];
             } else {
@@ -1687,8 +1745,10 @@ define([
             // Refresh the editor display since our line classes
             // might have padding that messes with the cursor position
             editor.refresh();
-            
-            self.triggerChange();
+
+            if (options.triggerChange !== false) {
+                self.triggerChange();
+            }
         },
 
         
@@ -3877,7 +3937,7 @@ define([
             // Loop through the content one line at a time
             doc.eachLine(function(line) {
 
-                var annotationStart, annotationEnd, blockOnThisLine, charNum, charInRange, htmlStartOfLine, htmlEndOfLine, inlineActive, inlineElementsToClose, lineNo, lineInRange, outputChar, raw, rawLastChar;
+                var annotationStart, annotationEnd, blockOnThisLine, charNum, charInRange, htmlStartOfLine, htmlEndOfLine, inlineActive, inlineActiveIndex, inlineActiveIndexLast, inlineElementsToClose, lineNo, lineInRange, outputChar, raw, rawLastChar;
 
                 lineNo = line.lineNo();
                 
@@ -3886,7 +3946,7 @@ define([
                 
                 // List of inline styles that are currently open.
                 // We need this because if we close one element we will need to re-open all the elements.
-                inlineActive = {};
+                inlineActive = [];
 
                 // List of inline elements that are currently open
                 // (in the order they were opened so they can be closed in reverse order)
@@ -4094,10 +4154,10 @@ define([
                     // of italicized text, then we must start by displaying <I> element.
                     if (lineNo === range.from.line && charNum === range.from.ch) {
 
-                            $.each(inlineActive, function(className, styleObj) {
+                            $.each(inlineActive, function(i, styleObj) {
                                 var element;
                                 if (!self.voidElements[ styleObj.element ]) {
-                                    inlineElementsToClose.push(styleObj.element);
+                                    inlineElementsToClose.push(styleObj);
                                     html += openElement(styleObj);
                                 }
                             });
@@ -4109,33 +4169,73 @@ define([
                     if (annotationEnd[charNum] || 
                         ((lineNo === range.to.line) && (range.to.ch <= charNum))) {
 
-                        // Close all the active elements in the reverse order they were created
-                        $.each(inlineElementsToClose.reverse(), function(i, element) {
-                            if (element && !self.voidElements[element]) {
-                                html += '</' + element + '>';
-                            }
-                        });
-                        inlineElementsToClose = [];
-
                         // Find out which elements are no longer active
-                        $.each(annotationEnd[charNum] || {}, function(i, styleObj) {
+                        $.each(annotationEnd[charNum] || [], function(i, styleObj) {
+
+                            var element, styleToClose;
                             
                             // If any of the styles is "raw" mode, clear the raw flag
                             if (styleObj.raw) {
                                 raw = false;
                             }
-                            
-                            delete inlineActive[styleObj.className];
+
+                            // Find and delete the last occurrance in inlineActive
+                            inlineActiveIndex = -1;
+                            for (i = 0; i < inlineActive.length; i++) {
+                                if (inlineActive[i].key === styleObj.key) {
+                                    inlineActiveIndex = i;
+                                }
+                            }
+                            if (inlineActiveIndex > -1) {
+
+                                // Remove the element from the array of active elements
+                                inlineActive.splice(inlineActiveIndex, 1);
+                                
+                                // Save this index so we can reopen any overlapping styles
+                                // For example if the overlapping marks look like this:
+                                // 1<b>23<i>45</b>67</i>890
+                                // Then when we reach char 6, we need to close the <i> and <b>,
+                                // but then we must reopen the <i>. So our final result will be:
+                                // 1<b>23<i>45</i></b><i>67</i>890
+                                inlineActiveIndexLast = inlineActiveIndex - 1;
+                                
+                                // Close all the active elements in the reverse order they were created
+                                // Only close the style that needs to be closed plus anything after it in the active list
+                                while (styleToClose = inlineElementsToClose.pop()) {
+                                    
+                                    element = styleToClose.element;
+                                    if (element && !self.voidElements[element]) {
+                                        html += '</' + element + '>';
+                                    }
+                                    
+                                    // Stop when we get to the style we're looking for
+                                    if (styleToClose.key === styleObj.key) {
+                                        break;
+                                    }
+                                }
+                            }
                         });
 
-                        // Re-open elements that are still active
-                        // if we are still in the range
+                        // Re-open elements that are still active if we are still in the range.
                         if (charInRange) {
-                            
-                            $.each(inlineActive, function(className, styleObj) {
+
+                            $.each(inlineActive, function(i, styleObj) {
+                                
                                 var element;
+
+                                // Only re-open elements after the last element closed
+                                if (i <= inlineActiveIndexLast) {
+                                    return;
+                                }
+
+                                // If it's a void element (that doesn't require a closing element)
+                                // there is no need to reopen it
                                 if (!self.voidElements[ styleObj.element ]) {
-                                    inlineElementsToClose.push(styleObj.element);
+
+                                    // Add the element to the list of elements that need to be closed later
+                                    inlineElementsToClose.push(styleObj);
+
+                                    // Re-open the element
                                     html += openElement(styleObj);
                                 }
                             });
@@ -4156,22 +4256,18 @@ define([
                                 raw = true;
                             }
 
-                            // Make sure this element is not already opened
-                            if (!inlineActive[styleObj.className]) {
+                            // Save this element on the list of active elements
+                            inlineActive.push(styleObj);
 
-                                // Save this element on the list of active elements
-                                inlineActive[styleObj.className] = styleObj;
+                            // Open the new element
+                            if (charInRange) {
 
-                                // Open the new element
-                                if (charInRange) {
-
-                                    // Also push it on a stack so we can close elements in reverse order.
-                                    if (!self.voidElements[ styleObj.element ]) {
-                                        inlineElementsToClose.push(styleObj.element);
-                                    }
-
-                                    html += openElement(styleObj);
+                                // Also push it on a stack so we can close elements in reverse order.
+                                if (!self.voidElements[ styleObj.element ]) {
+                                    inlineElementsToClose.push(styleObj);
                                 }
+
+                                html += openElement(styleObj);
                             }
                         });
                     } // if annotationStart
@@ -4732,9 +4828,9 @@ define([
                 }
                 
                 if (styleObj.line) {
-                    self.blockSetStyle(styleObj, annotation);
+                    self.blockSetStyle(styleObj, annotation, {triggerChange:false});
                 } else {
-                    self.inlineSetStyle(styleObj, annotation, {addToHistory:false});
+                    self.inlineSetStyle(styleObj, annotation, {addToHistory:false, triggerChange:false});
                 }
             });
 

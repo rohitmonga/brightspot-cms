@@ -408,6 +408,11 @@ public class PageFilter extends AbstractFilter {
                 }
             }
 
+            if (Static.isPreview(request) || user != null) {
+                response.setHeader("Cache-Control", "private, no-cache");
+                response.setHeader("Brightspot-Cache", "none");
+            }
+
             // Not handled by the CMS.
             if (mainObject == null) {
                 chain.doFilter(request, response);
@@ -475,11 +480,6 @@ public class PageFilter extends AbstractFilter {
             }
 
             Static.pushObject(request, mainObject);
-
-            if (Static.isPreview(request) || user != null) {
-                response.setHeader("Cache-Control", "private, no-cache");
-                response.setHeader("Brightspot-Cache", "none");
-            }
 
             final State mainState = State.getInstance(mainObject);
 
@@ -1099,7 +1099,7 @@ public class PageFilter extends AbstractFilter {
             throws IOException, ServletException {
 
         ViewRequest viewRequest = new ServletViewRequest(request);
-        Object view = viewRequest.createView(PAGE_VIEW_TYPE, object);
+        Object view = viewRequest.createView(ObjectUtils.firstNonBlank(request.getParameter("_viewType"), PAGE_VIEW_TYPE), object);
 
         if (view == null) {
             PageViewClass annotation = object.getClass().getAnnotation(PageViewClass.class);

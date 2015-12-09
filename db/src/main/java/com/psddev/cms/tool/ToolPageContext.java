@@ -43,6 +43,9 @@ import javax.servlet.jsp.PageContext;
 
 import com.google.common.base.MoreObjects;
 import com.ibm.icu.text.MessageFormat;
+import com.psddev.cms.db.PageFilter;
+import com.psddev.cms.view.PageViewClass;
+import com.psddev.cms.view.ViewCreator;
 import com.psddev.dari.db.Recordable;
 import com.psddev.dari.util.CascadingMap;
 import com.psddev.dari.util.CollectionUtils;
@@ -598,9 +601,20 @@ public class ToolPageContext extends WebPageContext {
                     } else {
                         Renderer.TypeModification rendererData = type.as(Renderer.TypeModification.class);
 
-                        return !ObjectUtils.isBlank(rendererData.getPath())
-                                || !ObjectUtils.isBlank(rendererData.getPaths());
+                        if (!ObjectUtils.isBlank(rendererData.getPath())
+                                || !ObjectUtils.isBlank(rendererData.getPaths())) {
+                            return true;
+                        }
                     }
+                }
+
+                PageViewClass pageViewClass = object.getClass().getAnnotation(PageViewClass.class);
+
+                // would be better if there was a separate API to just "find" the creator class
+                // rather than incurring the overhead of also creating it.
+                if ((pageViewClass != null && ViewCreator.createCreator(object, pageViewClass.value()) != null)
+                        || ViewCreator.createCreator(object, PageFilter.PAGE_VIEW_TYPE) != null) {
+                    return true;
                 }
             }
         }
@@ -2720,6 +2734,9 @@ public class ToolPageContext extends WebPageContext {
                         fields.addAll(0, firsts);
                         fields.addAll(lasts);
                     }
+
+                    // prevents empty tab from displaying on Singletons
+                    fields.removeIf(f -> f.getInternalName().equals("dari.singleton.key"));
 
                     DependencyResolver<ObjectField> resolver = new DependencyResolver<>();
                     Map<String, ObjectField> fieldByName = fields.stream()
