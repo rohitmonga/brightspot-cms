@@ -123,6 +123,8 @@
   .rte2-toolbar-enhancement { width:auto; padding-left:0.5em; padding-right:0.5em; }
   .rte2-toolbar-marker { width:auto; padding-left:0.5em; padding-right:0.5em; }
 
+  .rte2-toolbar-enhancement-inline { width:auto; padding-left:0.5em; padding-right:0.5em; }
+
   .rte2-toolbar-track-changes { width:auto; padding-left:0.5em; padding-right:0.5em; }
   .rte2-toolbar-track-changes-accept { .icon; .icon-ok; }
   .rte2-toolbar-track-changes-reject { .icon; .icon-remove; }
@@ -227,10 +229,27 @@
 .rte2-style-align-right {
   text-align:right;
 }
+.rte2-style-spelling {
+  border-bottom:1px dotted red;
+}
+@rte2-style-comment-border: 1px solid rgba(0, 0, 0, 0.3);
 .rte2-style-comment {
   font-style:italic;
-  outline:1px solid #333;
-  padding:0.1em;
+  border-top: @rte2-style-comment-border;
+  border-bottom:@rte2-style-comment-border;
+  background-color: rgba(0,0,0,0.1);
+}
+.rte2-style-comment-start {
+  padding-left:0.1em;
+  border-left: @rte2-style-comment-border;
+
+  .icon;
+  .icon-comment-alt;
+
+}
+.rte2-style-comment-end {
+  padding-right:0.1em;
+  border-right:  @rte2-style-comment-border;
 }
 .rte2-style-collapsed {
   font-style:italic;
@@ -238,6 +257,11 @@
   display:inline-block;
   padding:0.1em 0.5em;
   background-color:#ddd;
+}
+.rte2-style-enhancement-inline {
+  padding:0;
+  background-color:rgba(180, 180, 180, 0.3);
+  outline:1px solid rgba(100, 100, 100, 0.5);
 }
 .rte2-style-enhancement {
   display:inline-block;
@@ -266,9 +290,6 @@
 .rte2-style-track-display .rte2-style-track-insert {
   background-color: rgba(125, 255, 125, 0.3);
   color:black;
-}
-.rte2-style-spelling {
-  border-bottom:1px dotted red;
 }
 
 .CodeMirror-hints {
@@ -554,9 +575,21 @@ li.CodeMirror-hint-active {
   float: right;
 }
 
+.popup[name=rte2-frame-enhancement-inline] {
+  max-width:1000px;
+  width:70%;
+}
+  
+
 // Div that is used as a paste clipboard
 // Note this cannot be hidden because it needs to get focus
 .rte2-clipboard {
   max-height:1px;
   overflow:hidden;
+}
+
+.rte2-onclick-selector {
+  ul {
+    margin:0 1em;
+  }
 }
