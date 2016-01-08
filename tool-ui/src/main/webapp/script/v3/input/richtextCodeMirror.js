@@ -260,7 +260,6 @@ define([
             self.$el = $(element).first();
 
             codeMirrorOptions = {
-                readOnly: $(element).closest('.inputContainer-readOnly').length,
                 lineWrapping: true,
                 dragDrop: false,
                 mode:null,
@@ -279,7 +278,7 @@ define([
 
             self.enhancementInit();
             self.initListListeners();
-            self.initClickListener();
+            self.onClickInit();
             self.initEvents();
             self.clipboardInit();
             self.trackInit();
@@ -389,53 +388,6 @@ define([
 
 
         /**
-         * Set up listener for clicks.
-         * If a style has an onClick parameter, then when user clicks that
-         * style we will call the onClick function and pass it the mark.
-         */
-        initClickListener: function() {
-
-            var editor, now, self;
-
-            self = this;
-            
-            editor = self.codeMirror;
-
-            // CodeMirror doesn't handle double clicks reliably,
-            // so we will simulate a double click event using mousedown.
-            $(editor.getWrapperElement()).on('mousedown', function(event) {
-
-                var $el, marks, now, pos;
-
-                // Generate timestamp
-                now = Date.now();
-
-                if (self.doubleClickTimestamp && (now - self.doubleClickTimestamp < 500) ) {
-
-                    delete self.doubleClickTimestamp;
-                    
-                    // Figure out the line and character based on the mouse coord that was clicked
-                    pos = editor.coordsChar({left:event.pageX, top:event.pageY}, 'page');
-
-                    // Loop through all the marks for the clicked position
-                    marks = editor.findMarksAt(pos);
-                    $.each(marks, function(i, mark) {
-                        var styleObj;
-                        styleObj = self.classes[mark.className];
-                        if (styleObj && styleObj.onClick) {
-                            styleObj.onClick(event, mark);
-                        }
-                    });
-
-                } else {
-                    self.doubleClickTimestamp = now;
-                }
-            });
-
-        }, // initClickListener
-
-
-        /**
          * Set up some special events.
          *
          * rteCursorActivity = the cursor has changed in the editor.
@@ -539,8 +491,6 @@ define([
                 }
             }
 
-            self.rawCleanup();
-
             return mark;
         },
 
@@ -613,6 +563,14 @@ define([
          *
          * @param Object [range=current selection]
          * The range of positions {from,to} 
+         *
+         * @param Object [options]
+         * Set of key/value pairs to specify options.
+         * These options will be passed as mark options when the mark is created.
+         *
+         * @param Object [options.triggerChange=true]
+         * Set this to false if you do not want to trigger the rteChange event after setting the style.
+         * For example, if you will be making multiple style changes and you will trigger the rteChange event yourself.
          */
         inlineSetStyle: function(style, range, options) {
             
@@ -641,6 +599,8 @@ define([
             
             markOptions = $.extend({
                 className: className,
+                startStyle: className + '-start',
+                endStyle: className + '-end',
                 inclusiveRight: true,
                 addToHistory: true
             }, options);
@@ -678,7 +638,9 @@ define([
             // Trigger a cursorActivity event so for example toolbar can pick up changes
             CodeMirror.signal(editor, "cursorActivity");
 
-            self.triggerChange();
+            if (options.triggerChange !== false) {
+                self.triggerChange();
+            }
             
             return mark;
             
@@ -1436,7 +1398,7 @@ define([
             
             $.each(editor.getAllMarks(), function(i, mark) {
 
-                var pos, styleObj, from, to;
+                var pos, styleObj, from, to, marks;
                 
                 // Is this a "raw" mark?
                 styleObj = self.classes[mark.className] || {};
@@ -1451,8 +1413,38 @@ define([
                     from = pos.from;
                     to = pos.to;
 
-                    // Clear other styles
-                    self.inlineRemoveStyle('', {from:from, to:to}, {includeTrack:true, except:mark.className, triggerChange:false});
+                    // Determine if there are other marks in this range
+                    marks = editor.findMarks(from, to);
+                    if (marks.length > 1) {
+
+                        $.each(marks, function(i, markInside) {
+
+                            var posInside;
+
+                            // Skip this mark if it is the raw mark
+                            if (markInside.className === mark.className) {
+                                return;
+                            }
+
+                            posInside = markInside.find() || {};
+                            
+                            // Make sure the mark is actually inside the raw area
+                            if (posInside.from.ch === pos.to.ch || posInside.to.ch === pos.from.ch) {
+                                
+                                // Don't do anything because the mark is next to the raw mark, not inside it
+                                
+                            } else {
+                                
+                                // Clear other styles within the raw mark
+                                self.inlineRemoveStyle('', {from:from, to:to}, {includeTrack:true, except:mark.className, triggerChange:false});
+
+                                // Return false to exit the each loop
+                                return false;
+                            }
+                            
+                        });
+
+                    }
                 }
                 
             });
@@ -1564,6 +1556,17 @@ define([
 
                 className = mark.className;
 
+                // Skip any classname that is not in our styles list
+                if (!self.classes[className]) {
+                    return;
+                }
+     
+                // Skip any classname that has an onClick since we dont' want to mess with those.
+                // For example, links.
+                if (self.classes[className].onClick) {
+                    return;
+                }
+                
                 if (!marksByClassName[className]) {
                     marksByClassName[className] = [];
                 }
@@ -1657,15 +1660,24 @@ define([
          *
          * @param Object [range=current selection]
          * The range of positions {from,to}.
+         *
+         * @param Object [options]
+         * Set of key/value pairs to specify options.
+         * These options will be passed as mark options when the mark is created.
+         *
+         * @param Object [options.triggerChange=true]
+         * Set this to false if you do not want to trigger the rteChange event after setting the style.
+         * For example, if you will be making multiple style changes and you will trigger the rteChange event yourself.
          */
-        blockSetStyle: function(style, range) {
+        blockSetStyle: function(style, range, options) {
 
             var className, editor, lineNumber, self, styleObj;
 
             self = this;
             editor = self.codeMirror;
             range = range || self.getRange();
-
+            options = options || {};
+            
             if (typeof style === 'string') {
                 styleObj = self.styles[style];
             } else {
@@ -1687,8 +1699,10 @@ define([
             // Refresh the editor display since our line classes
             // might have padding that messes with the cursor position
             editor.refresh();
-            
-            self.triggerChange();
+
+            if (options.triggerChange !== false) {
+                self.triggerChange();
+            }
         },
 
         
@@ -2196,6 +2210,186 @@ define([
             return $(el).data('enhancementMark');
         },
 
+
+        //==================================================
+        // OnClick Handlers
+        //==================================================
+        
+        /**
+         * Set up listener for clicks.
+         * If a style has an onClick parameter, then when user clicks that
+         * style we will call the onClick function and pass it the mark.
+         */
+        onClickInit: function() {
+
+            var editor, now, self;
+
+            self = this;
+            
+            editor = self.codeMirror;
+
+            // CodeMirror doesn't handle double clicks reliably,
+            // so we will simulate a double click event using mousedown.
+            $(editor.getWrapperElement()).on('mousedown', function(event) {
+
+                var $el, marks, now, pos;
+
+                // Don't do clicks if the editor is in read only mode
+                if (self.readOnlyGet()) {
+                    return;
+                }
+                
+                // Generate timestamp
+                now = Date.now();
+
+                if (self.doubleClickTimestamp && (now - self.doubleClickTimestamp < 500) ) {
+
+                    // Figure out the line and character based on the mouse coord that was clicked
+                    pos = editor.coordsChar({left:event.pageX, top:event.pageY}, 'page');
+
+                    // Find all the marks for the clicked position
+                    marks = editor.findMarksAt(pos);
+
+                    // Only keep the marks that have onClick configs
+                    marks = $.map(marks, function(mark, i) {
+                        var styleObj;
+                        styleObj = self.classes[mark.className];
+                        if (styleObj && styleObj.onClick) {
+                            // Keep in the array
+                            return mark;
+                        } else {
+                            // Remove from the array
+                            return null;
+                        }
+                    });
+
+                    if (marks.length === 1) {
+
+                        self.onClickDoMark(event, marks[0]);
+                        
+                    } else if (marks.length > 1) {
+
+                        // Unselect the current selection
+                        range = self.markGetRange(marks[0]);
+                        self.codeMirror.setCursor(range.from);
+
+                        // Give time for the click event to complete
+                        // so the resulting popup doesn't get closed accidentally
+                        setTimeout(function(){
+
+                            // Pop up a div that lets user choose which mark to edit
+                            self.onClickSelectMark(event, marks);
+                        }, 100);
+                        
+                    }
+                    
+                }
+
+                self.doubleClickTimestamp = now;
+            });
+
+        }, // onClickInit
+
+        
+        /**
+         * Do the onclick event for a mark.
+         * For example, a link or inline enhancement mark might have an onclick handler
+         *
+         * @param Object event
+         * The click event.
+         *
+         * @param Object mark
+         * The CodeMirror mark. Note this mark must have a className, which will be used
+         * to find the style object that contains the onclick handler.
+         */
+        onClickDoMark: function(event, mark) {
+            
+            var range, self, styleObj;
+
+            self = this;
+
+            styleObj = self.classes[mark.className];
+            if (styleObj && styleObj.onClick) {
+                            
+                // Make this mark the current selection
+                range = self.markGetRange(mark);
+                self.codeMirror.setSelection(range.from, range.to);
+
+                styleObj.onClick(event, mark);
+            }
+        },
+
+        
+        /**
+         * In case a cursor position resides within several marks with onclick events,
+         * display a popup that lets the user select which mark to click.
+         *
+         * @param Object event
+         * The click event.
+         *
+         * @param Object mark
+         * The CodeMirror mark. Note this mark must have a className, which will be used
+         * to find the style object that contains the onclick handler. In addition the
+         * style object can have a getLabel() function that returns a label to be used
+         * in the slection popup.
+         */
+        onClickSelectMark: function(event, marks) {
+            var $div, $divPosition, $li, self, $ul;
+            self = this;
+
+            event.stopPropagation();
+            event.preventDefault();
+            
+            // Display a pop-up list of marks that can be edited
+            $div = $('<div/>', {'class': 'rte2-onclick-selector'});
+            $('<h2/>', {text:'Select a mark to edit:'}).appendTo($div);
+            $ul = $('<ul/>').appendTo($div);
+            
+            $.each(marks.reverse(), function(i, mark) {
+                
+                var label, $li, styleObj;
+
+                // Get the label to display for this mark.
+                // It defaults to the className of the style.
+                // Of if the style definition has a getLabel() function
+                // call that and use the return value
+                styleObj = self.classes[mark.className] || {};
+                label = styleObj.enhancementName || mark.className;
+                if (styleObj.getLabel) {
+                    label = styleObj.getLabel(mark);
+                }
+                
+                $li = $('<li/>', {
+                    html: $('<a/>', {text:label})
+                }).on('click', function(eventClick) {
+                    eventClick.stopPropagation();
+                    eventClick.preventDefault();
+                    $(this).popup('close');
+                    self.onClickDoMark(event, mark);
+                }).appendTo($ul);
+            });
+
+            $div.appendTo('body').popup();
+
+            // Create an element that the popup can use to position itself
+            // and position it at the point of the click
+            $divPosition = $('<div/>', {
+                'style': 'position:absolute;top:0;left:0;height:1px;overflow:hidden;'
+            }).appendTo('body').css({
+                'top': event.pageY + 12,
+                'left': event.pageX
+            });
+            $div.popup('source', $divPosition)
+
+            $div.popup('container').on('close', function() {
+                // If the popup is canceled with Esc or otherwise, do some cleanup
+                $div.remove();
+                $divPosition.remove();
+            });
+
+            $div.popup('open');
+        },
+        
         
         //--------------------------------------------------
         // Track Changes
@@ -3660,7 +3854,18 @@ define([
             self.codeMirror.setCursor(line, ch);
         },
 
+        readOnlyGet: function() {
+            var self;
+            self = this;
+            return self.codeMirror.isReadOnly();
+        },
 
+        readOnlySet: function(readOnly) {
+            var self;
+            self = this;
+            self.codeMirror.setOption('readOnly', readOnly);
+        },
+        
         /**
          * Returns the range for a mark.
          * @returns {Object}
@@ -3805,21 +4010,22 @@ define([
              * An object containing additional attributes to add to the element.
              * For example: {'style': 'font-weight:bold'}
              */
-            function openElement(styleObj) {
+            function openElement(styleObj, attributes) {
                 
                 var html = '';
 
+                attributes = attributes || {};
+                
                 if (styleObj.markToHTML) {
                     html = styleObj.markToHTML();
                 } else if (styleObj.element) {
+                    
                     html = '<' + styleObj.element;
 
-                    if (styleObj.elementAttr) {
-                        $.each(styleObj.elementAttr, function(attr, value) {
-                            html += ' ' + attr + '="' + value + '"';
-                        });
-                    }
-
+                    $.each($.extend({}, styleObj.elementAttr, styleObj.attributes, attributes), function(attr, value) {
+                        html += ' ' + attr + '="' + self.htmlEncode(value) + '"';
+                    });
+                
                     // For void elements add a closing slash when closing, like <br/>
                     if (self.voidElements[ styleObj.element ]) {
                         html += '/';
@@ -3877,7 +4083,7 @@ define([
             // Loop through the content one line at a time
             doc.eachLine(function(line) {
 
-                var annotationStart, annotationEnd, blockOnThisLine, charNum, charInRange, htmlStartOfLine, htmlEndOfLine, inlineActive, inlineElementsToClose, lineNo, lineInRange, outputChar, raw, rawLastChar;
+                var annotationStart, annotationEnd, blockOnThisLine, charNum, charInRange, htmlStartOfLine, htmlEndOfLine, inlineActive, inlineActiveIndex, inlineActiveIndexLast, inlineElementsToClose, lineNo, lineInRange, outputChar, raw, rawLastChar;
 
                 lineNo = line.lineNo();
                 
@@ -3886,7 +4092,7 @@ define([
                 
                 // List of inline styles that are currently open.
                 // We need this because if we close one element we will need to re-open all the elements.
-                inlineActive = {};
+                inlineActive = [];
 
                 // List of inline elements that are currently open
                 // (in the order they were opened so they can be closed in reverse order)
@@ -4065,8 +4271,10 @@ define([
                         } else {
 
                             // There is no custom toHTML function for this
-                            // style, so we'll just use the style object
-                            annotationStart[startCh].push(styleObj);
+                            // style, so we'll just use the style object,
+                            // but we'll also include any attributes that
+                            // were stored on the mark
+                            annotationStart[startCh].push( $.extend(true, {}, styleObj, {attributes:mark.attributes}) );
                         }
                         
                         // Add the element to the start and end annotations for this character
@@ -4094,10 +4302,10 @@ define([
                     // of italicized text, then we must start by displaying <I> element.
                     if (lineNo === range.from.line && charNum === range.from.ch) {
 
-                            $.each(inlineActive, function(className, styleObj) {
+                            $.each(inlineActive, function(i, styleObj) {
                                 var element;
                                 if (!self.voidElements[ styleObj.element ]) {
-                                    inlineElementsToClose.push(styleObj.element);
+                                    inlineElementsToClose.push(styleObj);
                                     html += openElement(styleObj);
                                 }
                             });
@@ -4109,33 +4317,73 @@ define([
                     if (annotationEnd[charNum] || 
                         ((lineNo === range.to.line) && (range.to.ch <= charNum))) {
 
-                        // Close all the active elements in the reverse order they were created
-                        $.each(inlineElementsToClose.reverse(), function(i, element) {
-                            if (element && !self.voidElements[element]) {
-                                html += '</' + element + '>';
-                            }
-                        });
-                        inlineElementsToClose = [];
-
                         // Find out which elements are no longer active
-                        $.each(annotationEnd[charNum] || {}, function(i, styleObj) {
+                        $.each(annotationEnd[charNum] || [], function(i, styleObj) {
+
+                            var element, styleToClose;
                             
                             // If any of the styles is "raw" mode, clear the raw flag
                             if (styleObj.raw) {
                                 raw = false;
                             }
-                            
-                            delete inlineActive[styleObj.className];
+
+                            // Find and delete the last occurrance in inlineActive
+                            inlineActiveIndex = -1;
+                            for (i = 0; i < inlineActive.length; i++) {
+                                if (inlineActive[i].key === styleObj.key) {
+                                    inlineActiveIndex = i;
+                                }
+                            }
+                            if (inlineActiveIndex > -1) {
+
+                                // Remove the element from the array of active elements
+                                inlineActive.splice(inlineActiveIndex, 1);
+                                
+                                // Save this index so we can reopen any overlapping styles
+                                // For example if the overlapping marks look like this:
+                                // 1<b>23<i>45</b>67</i>890
+                                // Then when we reach char 6, we need to close the <i> and <b>,
+                                // but then we must reopen the <i>. So our final result will be:
+                                // 1<b>23<i>45</i></b><i>67</i>890
+                                inlineActiveIndexLast = inlineActiveIndex - 1;
+                                
+                                // Close all the active elements in the reverse order they were created
+                                // Only close the style that needs to be closed plus anything after it in the active list
+                                while (styleToClose = inlineElementsToClose.pop()) {
+                                    
+                                    element = styleToClose.element;
+                                    if (element && !self.voidElements[element]) {
+                                        html += '</' + element + '>';
+                                    }
+                                    
+                                    // Stop when we get to the style we're looking for
+                                    if (styleToClose.key === styleObj.key) {
+                                        break;
+                                    }
+                                }
+                            }
                         });
 
-                        // Re-open elements that are still active
-                        // if we are still in the range
+                        // Re-open elements that are still active if we are still in the range.
                         if (charInRange) {
-                            
-                            $.each(inlineActive, function(className, styleObj) {
+
+                            $.each(inlineActive, function(i, styleObj) {
+                                
                                 var element;
+
+                                // Only re-open elements after the last element closed
+                                if (i <= inlineActiveIndexLast) {
+                                    return;
+                                }
+
+                                // If it's a void element (that doesn't require a closing element)
+                                // there is no need to reopen it
                                 if (!self.voidElements[ styleObj.element ]) {
-                                    inlineElementsToClose.push(styleObj.element);
+
+                                    // Add the element to the list of elements that need to be closed later
+                                    inlineElementsToClose.push(styleObj);
+
+                                    // Re-open the element
                                     html += openElement(styleObj);
                                 }
                             });
@@ -4156,22 +4404,18 @@ define([
                                 raw = true;
                             }
 
-                            // Make sure this element is not already opened
-                            if (!inlineActive[styleObj.className]) {
+                            // Save this element on the list of active elements
+                            inlineActive.push(styleObj);
 
-                                // Save this element on the list of active elements
-                                inlineActive[styleObj.className] = styleObj;
+                            // Open the new element
+                            if (charInRange) {
 
-                                // Open the new element
-                                if (charInRange) {
-
-                                    // Also push it on a stack so we can close elements in reverse order.
-                                    if (!self.voidElements[ styleObj.element ]) {
-                                        inlineElementsToClose.push(styleObj.element);
-                                    }
-
-                                    html += openElement(styleObj);
+                                // Also push it on a stack so we can close elements in reverse order.
+                                if (!self.voidElements[ styleObj.element ]) {
+                                    inlineElementsToClose.push(styleObj);
                                 }
+
+                                html += openElement(styleObj);
                             }
                         });
                     } // if annotationStart
@@ -4313,6 +4557,8 @@ define([
                 next = n.childNodes[0];
 
                 while (next) {
+
+                    elementAttributes = {};
 
                     // Check if we got a text node or an element
                     if (next.nodeType === 3) {
@@ -4458,6 +4704,12 @@ define([
                                         matchStyleObj = styleObj;
                                     }
 
+                                    /***
+
+                                        // Not needed anymore (?) since we assume that rules are set up to match elements with specified
+                                        // attribues. You can match <span myattr1> and <span myattr2> but if you tried to match
+                                        // just <span> then that might match in a different order so it might cause problems.
+
                                     // Check if the element has other attributes that are unexpected
                                     if (matchStyleObj && !styleObj.elementAttrAny) {
                                         $.each(elementAttributes, function(attr, value) {
@@ -4469,6 +4721,7 @@ define([
                                             }
                                         });
                                     }
+                                    ***/
 
 
                                     // Stop after the first style that matches
@@ -4622,7 +4875,8 @@ define([
                                 annotations.push({
                                     styleObj:matchStyleObj,
                                     from:from,
-                                    to:to
+                                    to:to,
+                                    attributes: elementAttributes
                                 });
                             }
                         }
@@ -4698,7 +4952,10 @@ define([
             history = editor.getHistory();
             
             // Set up all the annotations
-            $.each(annotations, function(i, annotation) {
+            // We reverse the order of the annotations because the parsing was done
+            // depth first, and we want to create the marks for parent elements before
+            // the marks for child elements (so elements can later be created in the same order)
+            $.each(annotations.reverse(), function(i, annotation) {
 
                 var styleObj;
 
@@ -4732,9 +4989,9 @@ define([
                 }
                 
                 if (styleObj.line) {
-                    self.blockSetStyle(styleObj, annotation);
+                    self.blockSetStyle(styleObj, annotation, {triggerChange:false});
                 } else {
-                    self.inlineSetStyle(styleObj, annotation, {addToHistory:false});
+                    self.inlineSetStyle(styleObj, annotation, {addToHistory:false, triggerChange:false, attributes:annotation.attributes});
                 }
             });
 

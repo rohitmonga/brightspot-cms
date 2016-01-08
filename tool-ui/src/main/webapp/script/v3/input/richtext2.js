@@ -101,50 +101,7 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
                 
                 // Do not allow links to span multiple lines
                 singleLine: true,
-
-                // Function to read attributes from a link and save them on the mark
-                fromHTML: function($el, mark) {
-
-                    mark.attributes = {
-                        href: $el.attr('href'),
-                        target: $el.attr('target'),
-                        rel: $el.attr('rel'),
-                        title: $el.attr('title'),
-                        cmsId: $el.attr('data-cms-id'),
-                        cmsHref: $el.attr('data-cms-href')
-                    };
-                },
-
-                // Function to return the opening HTML element for a link
-                toHTML: function(mark) {
-
-                    var href, html, rel, target, title, cmsId;
-
-                    // For a link set the attributes on the element that were set on the mark
-                    html = '<a';
-
-                    if (mark.attributes) {
-                        href = mark.attributes.href || '';
-                        title = mark.attributes.title || '';
-                        target = mark.attributes.target || '';
-                        rel = mark.attributes.rel || '';
-                        cmsId = mark.attributes.cmsId || '';
-                    }
-
-                    if (href) { html += ' href="' + href + '"'; }
-                    if (title) { html += ' title="' + title + '"'; }
-                    if (target) { html += ' target="' + target + '"'; }
-                    if (rel) { html += ' rel="' + rel + '"'; }
-                    if (cmsId) {
-                        html += ' data-cms-id="' + cmsId + '"';
-                        html += ' data-cms-href="' + href + '"';
-                    }
-
-                    html += '>';
-
-                    return html;
-                },
-
+                
                 onClick: function(event, mark) {
 
                     var self;
@@ -172,8 +129,7 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
                                 mark.clear();
                             } else {
                                 // Update the link attributes
-                                mark.attributes = mark.attributes || {};
-                                $.extend(mark.attributes, attributes);
+                                mark.attributes = attributes;
                             }
                         }).fail(function(){
 
@@ -229,9 +185,7 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
                 },
                 clear: ['alignLeft', 'alignCenter', 'ol', 'ul']
             }
-
         },
-
         
         /**
          * Rules for cleaning up the clipboard data when content is pasted
@@ -381,7 +335,7 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
             { custom:true }, // If custom styles exist, insert a separator and custom styles here
 
             { separator:true, inline:false },
-            { action:'enhancement', text: 'Enhancement', className: 'rte2-toolbar-enhancement', tooltip: 'Add Enhancement', inline:false },
+            { action:'enhancement', text: 'Enhancement', className: 'rte2-toolbar-enhancement', tooltip: 'Add Block Enhancement', inline:false },
             { action:'marker', text: 'Marker', className: 'rte2-toolbar-marker', tooltip: 'Add Marker', inline:false },
 
             { separator:true },
@@ -476,6 +430,7 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
             self.toolbarInit();
             self.linkInit();
             self.enhancementInit();
+            self.inlineEnhancementInit();
             self.trackChangesInit();
             self.placeholderInit();
             self.modeInit();
@@ -672,6 +627,9 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
             // Initialize the editor
             self.rte.init(self.$editor);
 
+            // Set to read only mode if necessary
+            self.rte.readOnlySet( self.$el.closest('.inputContainer-readOnly').length );
+            
             // Override the rich text editor to tell it how enhancements should be imported from HTML
             self.rte.enhancementFromHTML = function($content, line) {
 
@@ -687,10 +645,6 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
             
             // Set up periodic update of the textarea
             self.previewInit();
-
-            self.$editor.closest('.inputContainer').on('focus', '.rte2-toolbar a', function () {
-                self.rte.focus();
-            });
         },
 
 
@@ -891,6 +845,12 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
                 $toolbar.insertBefore(self.$editor);
             }
             self.$toolbar = $toolbar;
+
+            // If in read only mode hide the toolbar.
+            // Note there is no way to switch from read only to editable at this time.
+            if (self.rte.readOnlyGet()) {
+                self.$toolbar.hide();
+            }
 
             // Recursive function for setting up toolbar menu and submenus
             function toolbarProcess(config, $toolbar) {
@@ -1223,12 +1183,20 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
                     break;
                 }
 
+            } else if (styleObj.enhancementType) {
+
+                // Stop the event from propagating, otherwise it will close the enhancement popup
+                event.stopPropagation();
+                event.preventDefault();
+
+                self.inlineEnhancementCreate(event, item.style);
 
             } else if (item.style) {
 
                 if (styleObj.onClick) {
 
-                    mark = rte.inlineGetMark(item.style) || rte.setStyle(item.style);
+                    // Create a new mark then call the onclick function on it
+                    mark = rte.setStyle(item.style);
                     if (mark) {
                         styleObj.onClick(event, mark);
                     }
@@ -1289,7 +1257,9 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
                 // Get the toolbar config object (added to the link when the link was created in toolbarInit()
                 config = $link.data('toolbarConfig');
 
-                if (config.action) {
+                // For toolbar actions we need special logic to determine if the button should be "active"
+                // One exception is for inline enhancements, which are treated as a normal style
+                if (config.action && config.action !== 'enhancementInline') {
 
                     switch (config.action) {
 
@@ -1323,7 +1293,8 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
                         $link.toggleClass('active', mode === 'plain');
                         $link.parent().show();
                         break;
-                    }
+                        
+                    } // switch
 
                 } else {
 
@@ -1408,26 +1379,26 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
             $toolbar = self.$toolbar;
             containerTop = $container.offset().top;
             toolbarHeight = $toolbar.outerHeight();
-
-            // Do nothing if the container is small
-            if ($container.outerHeight() < 3 * toolbarHeight) {
-                return;
-            }
+            containerTop -= toolbarHeight;
 
             // Is the rich text editor completely in view?
-            if (windowTop < containerTop) {
+            // Or is the editor so small that moving the toolbar wouldn't be wise?
+            if (($container.outerHeight() < 3 * toolbarHeight) || windowTop < containerTop) {
 
-                // Yes, completely in view. So remove positioning from the toolbar
-                raf(function() {
+                if ($toolbar.hasClass('rte2-toolbar-fixed')) {
+                    
+                    // Yes, completely in view. So remove positioning from the toolbar
+                    raf(function() {
 
-                     // Remove extra padding  above the editor because the toolbar will no longer be fixed
-                    $container.css('padding-top', 0);
+                        // Remove extra padding  above the editor because the toolbar will no longer be fixed position
+                        $container.css('padding-top', 0);
 
-                    // Restore toolbar to original styles
-                    $toolbar.removeClass('rte2-toolbar-fixed');
-                    $toolbar.attr('style', self._toolbarOldStyle);
-                    self._toolbarOldStyle = null;
-                });
+                        // Restore toolbar to original styles
+                        $toolbar.removeClass('rte2-toolbar-fixed');
+                        $toolbar.attr('style', self._toolbarOldStyle);
+                        self._toolbarOldStyle = null;
+                    });
+                }
 
             } else {
 
@@ -1608,17 +1579,32 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
         linkSave: function() {
 
             var attributes, $linkDialog, self;
+            var href, rel, target, title, cmsId;
 
             self = this;
 
             $linkDialog = self.$linkDialog;
 
-            attributes = {
-                href: $linkDialog.find('.rte2-dialogLinkHref').val() || '',
-                target: $linkDialog.find('.rte2-dialogLinkTarget').val() || '',
-                rel: $linkDialog.find('.rte2-dialogLinkRel').val() || '',
-                cmsId: $linkDialog.find('.rte2-dialogLinkId').val() || ''
-            };
+            href = $linkDialog.find('.rte2-dialogLinkHref').val() || '';
+            target = $linkDialog.find('.rte2-dialogLinkTarget').val() || '';
+            rel = $linkDialog.find('.rte2-dialogLinkRel').val() || '';
+            cmsId = $linkDialog.find('.rte2-dialogLinkId').val() || '';
+            
+            attributes = {};
+            attributes.href = href;
+
+            if (target) {
+                attributes.target = $linkDialog.find('.rte2-dialogLinkTarget').val() || '';
+            }
+
+            if (rel) {
+                attributes.rel = $linkDialog.find('.rte2-dialogLinkRel').val() || '';
+            }
+
+            if (cmsId) {
+                attributes['data-cms-id'] = cmsId;
+                attributes['data-cms-href'] = href;
+            }
 
             // Resolve the deferred object with the new attributes,
             // so whoever called linkEdit will be notified with the final results.
@@ -1809,7 +1795,13 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
             // Create wrapper element for the enhancement and add the toolbar
             $enhancement = $('<div/>', {
                 'class': 'rte2-enhancement'
-            }).append( self.enhancementToolbarCreate(config) );
+            });
+
+            // If in read only mode do not create toolbar.
+            // Note there is no way to switch from read only to editable at this time.
+            if (!self.rte.readOnlyGet()) {
+                $enhancement.append( self.enhancementToolbarCreate(config) );
+            }
 
             if (config.marker) {
                 $enhancement.addClass('rte2-marker');
@@ -2668,6 +2660,146 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
 
 
         /*==================================================
+         * Inline Enhancements
+         *==================================================*/
+
+        inlineEnhancementInit: function() {
+            
+            var self;
+            self = this;
+
+            // Add onclick function to each style that is marked for inline enhancements
+            $.each(self.rte.styles, function(styleKey, styleObj) {
+                if (styleObj.enhancementType && !styleObj.onClick) {
+                    styleObj.onClick = function(event, mark){
+                        self.inlineEnhancementHandleClick(event, mark);
+                    };
+                }
+            });
+        },
+
+        
+        inlineEnhancementCreate: function(event, style) {
+
+            var mark, self, styleObj;
+            
+            self = this;
+
+            styleObj = self.rte.styles[style] || {};
+            
+            // Create a new mark then call the onclick function on it
+            mark = self.rte.setStyle(style);
+            if (mark) {
+                self.inlineEnhancementHandleClick(event, mark);
+            }
+
+        },
+
+        inlineEnhancementHandleClick: function(event, mark) {
+
+            var enhancementEditUrl, $div, $divLink, html, self, styleObj;
+
+            self = this;
+
+            styleObj = self.rte.classes[mark.className] || {};
+            if (!styleObj.enhancementType) {
+                return;
+            }
+            
+            // Stop the click from propagating up to the window
+            // because if it did, it would close the popup we will be opening.
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            enhancementEditUrl = $.addQueryParameters(
+                window.CONTEXT_PATH + '/content/enhancement.jsp',
+                'typeId', styleObj.enhancementType,
+                'attributes', JSON.stringify(mark.attributes));
+
+            range = self.rte.markGetRange(mark);
+            html = self.rte.toHTML(range);
+            
+            // Create a link for editing the enhancement and position it at the click event
+            $div = $('<div/>', {
+                'class': 'rte2-frame-enhancement-inline',
+                'style': 'position:absolute;top:0;left:0;height:1px;overflow:hidden;',
+                html: $('<a/>', {
+                    target: 'rte2-frame-enhancement-inline',
+                    href: enhancementEditUrl,
+                    style: 'width:100%;display:block;',
+                    text: '.'
+                })
+                
+            }).appendTo('body').css({
+                'top': event.pageY,
+                'left': event.pageX
+            });
+
+            $divLink = $div.find('a');
+
+            // Add data to the link with the rte and the mark,
+            // so any popup form can access them
+            $divLink.data('rte', self);
+            $divLink.data('mark', mark);
+            
+            // Listen for an 'enhancementUpdate' event that will be triggered on
+            // the edit link, so we can tell when the enhancement is updated.
+            // The enhancement edit form will trigger this event.
+            $divLink.on('enhancementUpdate', function(event, html){
+                self.inlineEnhancementReplaceMark(mark, html);
+            });
+
+            // Listen for an 'enhancementRead' event that will be triggered on
+            // the edit popup, so we can communicate the mark back to the popup form.
+            // The enhancement edit form can trigger this event.
+            // Alternately the popup form can get the rte and mark from the data on the source link.
+            $divLink.on('enhancementRead', function(event, callback){
+                // Call the callback, passing it the mark.
+                // Also within the callback ensure that "this" refers to this instance of the rte.
+                if (callback) {
+                    callback.call(self, mark, html);
+                }
+            });
+
+            // Do a fake "click" on the link so it will trigger the popup
+            // but first wait for the current click to finish so it doesn't interfere
+            // with any popups
+            setTimeout(function(){
+                $divLink.click();
+            }, 100);
+
+        },
+
+        
+        /**
+         * Given an existing mark, replace the entire mark with new HTML.
+         * Note after calling this function, the original mark is no longer
+         * valid and you will not have a pointer to the new mark.
+         *
+         * @param Object mark
+         * A CodeMirror mark.
+         *
+         * @param String html
+         * The HTML to replace the mark.
+         */
+        inlineEnhancementReplaceMark: function(mark, html) {
+            
+            var range, self;
+
+            self = this;
+            
+            if (html && $.type(html) === 'string') {
+                range = self.rte.markGetRange(mark);
+                if (range.from) {
+                    self.rte.fromHTML(html, range);
+                }
+            }
+        },
+
+        
+        /*==================================================
          * Placeholder
          *==================================================*/
 
@@ -2831,6 +2963,38 @@ define(['jquery', 'v3/input/richtextCodeMirror', 'v3/plugin/popup', 'jquery.extr
 
     };
 
+    if (RICH_TEXT_ELEMENTS.length > 0) {
+        Rte.toolbarConfig.push({
+            separator: true
+        });
+
+        var richTextElementsSubmenu = [];
+        
+        $.each(RICH_TEXT_ELEMENTS, function (index, rtElement) {
+            var tag = rtElement.tag;
+            var styleName = rtElement.styleName;
+
+            Rte.styles[styleName] = {
+                className: 'rte2-style-' + styleName,
+                enhancementType: rtElement.typeId,
+                enhancementName: rtElement.displayName,
+                element: tag,
+                elementAttrAny: true,
+                singleLine: true
+            };
+
+            richTextElementsSubmenu.push({
+                className: 'rte2-toolbar-noicon',
+                style: styleName,
+                text: rtElement.displayName
+            });
+        });
+
+        Rte.toolbarConfig.push({
+            text: 'Inline',
+            submenu: richTextElementsSubmenu
+        });
+    }
 
     // Expose as a jQuery plugin.
     $.plugin2('rte2', {

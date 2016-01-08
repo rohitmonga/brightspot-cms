@@ -30,6 +30,7 @@ require([
 
   'bsp-autoexpand',
   'bsp-autosubmit',
+  'bsp-uploader',
   'bsp-utils',
   'jquery.mousewheel',
   'velocity',
@@ -38,6 +39,7 @@ require([
   'v3/input/change',
   'input/code',
   'input/color',
+  'v3/input/file',
   'input/focus',
   'input/grid',
   'v3/input/image',
@@ -55,7 +57,6 @@ require([
   'jquery.calendar',
   'v3/jquery.dropdown',
   'jquery.editableplaceholder',
-  'evaporate',
   'v3/plugin/popup',
   'v3/plugin/fixed-scrollable',
   'v3/jquery.frame',
@@ -69,7 +70,6 @@ require([
   'jquery.tabbed',
   'v3/taxonomy',
   'jquery.toggleable',
-  'v3/upload',
   'nv.d3',
 
   'v3/dashboard',
@@ -89,7 +89,7 @@ function() {
   var $ = arguments[0];
   var bsp_autoExpand = arguments[2];
   var bsp_autoSubmit = arguments[3];
-  var bsp_utils = arguments[4];
+  var bsp_utils = arguments[5];
   var win = window;
   var undef;
   var $win = $(win),
@@ -481,6 +481,11 @@ function() {
           };
 
           replaceFileInput();
+
+          //re-initialize uploader plugin, if necessary (not necessary for uploadFile-legacy servlet)
+          if ($dropLink.attr('href').indexOf('uploadFiles') === -1) {
+            $fileInput.attr('data-bsp-uploader', ' ');
+          }
         });
 
         $dropZone.append($dropLink);
